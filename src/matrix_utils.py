@@ -1,9 +1,22 @@
-# Imports
-import numpy as np
-#from matrix_visuals import binary_grid
+""" matrix_utils
 
-# Banded matrix_generator
+Simple module containing helper functions:
+- Banded matrix generator
+
+"""
+
+import numpy as np
+
+
 def banded_matric_generator(n: int, ku: int, kl: int):
+    """Banded matrix generator
+
+    Arguments:
+    n: int -> matrix dimension
+    ku: int -> number of subdiagonals
+    kl: int -> number of superdiagonals
+    """
+
     rng = np.random.default_rng(seed=42)
     A = np.diag(rng.random(n))
     
@@ -13,10 +26,4 @@ def banded_matric_generator(n: int, ku: int, kl: int):
     for i in range(1,kl+1):
         A += np.diag(rng.random(n-i), k=-i)
 
-    print("Generatred Banded Matrix:\n", A)
     return A
-
-A = banded_matric_generator(8, 1, 1)
-B = banded_matric_generator(8, 1, 1)
-#binary_grid(A)
-print(np.matmul(A,B))
