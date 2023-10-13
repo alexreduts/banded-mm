@@ -1,6 +1,9 @@
-# Matrix Visualization Modul
+""" matrix_visuals
 
-# Imports
+Modul containing custom functions to for neat visualizations of matrices
+
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 

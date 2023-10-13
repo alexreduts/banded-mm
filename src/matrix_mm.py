@@ -111,7 +111,7 @@ def naive_banded_mm(A, au, al, B, bu, bl):
         for i in range(max(0, j-d_new), min(m, j+d_new+1)):    
             count_i += 1
 
-            #print("k: ", range(max(0, i-d_old, j-d_old), min(m, i+d_old+1, j+d_old+1)))
+            #print("k: ", range(max(0, i-au, j-bu), min(m, i+au+1, j+bu+1)))
             for k in range(max(0,i-au, j-bu), min(m,i+au+1, j+bu+1)):
                 count_k += 1
                 

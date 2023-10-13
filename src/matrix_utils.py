@@ -8,7 +8,7 @@ Simple module containing helper functions:
 import numpy as np
 
 
-def banded_matric_generator(n: int, ku: int, kl: int):
+def banded_matrix_generator(n: int, ku: int, kl: int):
     """Banded matrix generator
 
     Arguments:
