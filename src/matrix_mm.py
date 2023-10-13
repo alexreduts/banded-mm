@@ -3,6 +3,7 @@
 Modul containing different matrix multiplication algorithms:
 - naive dense matrix multiplication algorithm
 - Strassen matrix multiplication algorithm
+- naive banded matrix multiplication algorithm
 
 """
 
@@ -72,4 +73,56 @@ def strassen(A, B):
     # Combining the 4 quadrants into a single matrix by stacking horizontally and vertically.
     C = np.vstack((np.hstack((c11, c12)), np.hstack((c21, c22))))
  
+    return C
+
+def naive_banded_mm(A, au, al, B, bu, bl):
+    """ Naive banded matrix multiplication algorithm
+
+    :param np.ndarray A: nxn matrix
+    :param int au: # of superdiagonals
+    :param int al: # of subdiagonals
+    :param np.ndarray B: nxn matrix
+    :param int bu: # of superdiagonals
+    :param int bl: # of subdiagonals
+
+    :rtype: np.ndarray
+    :returns: matrix product of A*B
+    """
+    
+    #symmetric bandwidth
+    if (au == al) & (bu == bl):
+        d_old = bu
+    d_new = int((au + al + bu + bl)/2)
+    n = A.shape[0]
+    m = B.shape[1]
+
+    C = np.zeros((n, m))
+    
+    count_j = 0
+    count_i = 0
+    count_k = 0
+    count_A_zeros = 0
+    count_B_zeros = 0
+   
+    #print("j: ", range(m))
+    for j in range(m):
+        count_j += 1
+
+        #print("i: ", range(max(0, j-d_new), min(m, j+d_new+1)))
+        for i in range(max(0, j-d_new), min(m, j+d_new+1)):    
+            count_i += 1
+
+            #print("k: ", range(max(0, i-d_old, j-d_old), min(m, i+d_old+1, j+d_old+1)))
+            for k in range(max(0,i-d_old, j-d_old), min(m,i+d_old+1, j+d_old+1)):
+                count_k += 1
+                
+                if(A[i,k] == 0):
+                    count_A_zeros += 1
+                if(B[k,j] == 0):
+                    count_B_zeros += 1
+
+                C[i,j] += A[i,k] * B[k,j]
+    
+    print("A zeros: ", count_A_zeros, "B zeros: ", count_B_zeros)
+    print("count_j: ", count_j, " count_i: ", count_i, " count_k: ", count_k)
     return C
