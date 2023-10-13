@@ -90,8 +90,7 @@ def naive_banded_mm(A, au, al, B, bu, bl):
     """
     
     #symmetric bandwidth
-    if (au == al) & (bu == bl):
-        d_old = bu
+    
     d_new = int((au + al + bu + bl)/2)
     n = A.shape[0]
     m = B.shape[1]
@@ -113,7 +112,7 @@ def naive_banded_mm(A, au, al, B, bu, bl):
             count_i += 1
 
             #print("k: ", range(max(0, i-d_old, j-d_old), min(m, i+d_old+1, j+d_old+1)))
-            for k in range(max(0,i-d_old, j-d_old), min(m,i+d_old+1, j+d_old+1)):
+            for k in range(max(0,i-au, j-bu), min(m,i+au+1, j+bu+1)):
                 count_k += 1
                 
                 if(A[i,k] == 0):
