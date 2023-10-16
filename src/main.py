@@ -77,7 +77,8 @@ def naive_blocked_banded_mm(
 
     blocked_A = blocking(A, block_size)
     blocked_B = blocking(B, block_size)
-    blocked_C = [[0 for x in range(len(blocked_A))] for x in range(len(blocked_B[0]))]
+    # blocked_C = [[0 for x in range(len(blocked_A))] for x in range(len(blocked_B[0]))]
+    blocked_C = blocking(np.zeros((A.shape[0], B.shape[1]), dtype=A.dtype), block_size)
     
     blocked_au = math.ceil(au/block_size)
     blocked_bu = math.ceil(bu/block_size)
@@ -98,16 +99,16 @@ def naive_blocked_banded_mm(
 
     return stacking(blocked_C)
 
-A = banded_matrix_generator(10, 3, 3)
-B = banded_matrix_generator(10, 2, 2)
-H = naive_blocked_banded_mm(A, 3, 3, B, 2, 2, 5)
-T = np.matmul(A,B)
+# A = banded_matrix_generator(10, 3, 3)
+# B = banded_matrix_generator(10, 2, 2)
+# H = naive_blocked_banded_mm(A, 3, 3, B, 2, 2, 5)
+# T = np.matmul(A,B)
 
 # This doesn't work
-#A = banded_matrix_generator(12, 3, 3)
-#B = banded_matrix_generator(12, 2, 2)
-#H = naive_blocked_banded_mm(A, 3, 3, B, 2, 2, 5)
-#T = np.matmul(A,B)
+A = banded_matrix_generator(12, 3, 3)
+B = banded_matrix_generator(12, 2, 2)
+H = naive_blocked_banded_mm(A, 3, 3, B, 2, 2, 5)
+T = np.matmul(A,B)
 
 print("Diff\n", H-T)
 
