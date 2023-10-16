@@ -61,6 +61,33 @@ def emtpy_block(matrix):
         print("multiplied empty block", )
         return True
 
+def naive_blocked_mm(
+        A: np.ndarray,
+        B: np.ndarray,
+        block_size: int
+        ):
+    """ Naive banded matrix multiplication in blocks
+
+    param A np.ndarray: 
+    param ...
+
+    return C np.ndarray:
+    rtype: np.ndarrayd
+    """
+
+    C = np.zeros((A.shape[0], B.shape[1]), dtype=A.dtype)
+
+    for i in range(C.shape[0]):
+        i_ = slice(i*block_size, min(C.shape[0], (i+1)*block_size))
+        for j in range(C.shape[1]):
+            j_ = slice(j*block_size, min(C.shape[1], (j+1)*block_size))
+            for k in range(A.shape[1]):
+                k_ = slice(k*block_size, min(A.shape[1], (k+1)*block_size))
+                C[i_, j_] += np.matmul(A[i_, k_], B[k_, j_])
+
+    return C
+
+
 def naive_blocked_banded_mm(
         A: np.ndarray, au: int, al: int,
         B: np.ndarray, bu: int, bl: int,
@@ -99,6 +126,7 @@ def naive_blocked_banded_mm(
 
     return stacking(blocked_C)
 
+
 # A = banded_matrix_generator(10, 3, 3)
 # B = banded_matrix_generator(10, 2, 2)
 # H = naive_blocked_banded_mm(A, 3, 3, B, 2, 2, 5)
@@ -109,6 +137,11 @@ A = banded_matrix_generator(12, 3, 3)
 B = banded_matrix_generator(12, 2, 2)
 H = naive_blocked_banded_mm(A, 3, 3, B, 2, 2, 5)
 T = np.matmul(A,B)
+
+assert np.allclose(H, T)
+
+H2 = naive_blocked_mm(A, B, 5)
+assert np.allclose(H2, T)
 
 print("Diff\n", H-T)
 
