@@ -12,7 +12,7 @@ Modul containing different matrix multiplication algorithms:
 
 import numpy as np
 
-from banded_mm.matrix_utils import empty_block
+from banded_mm.matrix_utils import empty_block, banded_matrix_generator
 
 # Naive (Textbook) dense matrix multiplication (3-loops)
 def naive_dense_mm(A, B):
@@ -230,8 +230,8 @@ def explicit_blocked_banded_mm(
 
 # Naive IMPLICITLY blocked gbmm
 def naive_blocked_banded_mm(
-        A: np.ndarray, nnz_A: int,
-        B: np.ndarray, nnz_B: int,
+        A: np.ndarray, bw_A: int,
+        B: np.ndarray, bw_B: int,
         block_size: int
         ):
     """ Naive banded matrix multiplication in blocks
@@ -243,13 +243,21 @@ def naive_blocked_banded_mm(
     rtype: np.ndarrayd
     """
 
-    #nnz = number of non-zero per row/column = bandwidth
-    nnz_C = int((nnz_A-1))+int((nnz_B-1))+1
-    #s_diag = super/sub diagonals
-    s_diag_C = int((nnz_C-1)/2) #((nnz_A-1)/2)+((nnz_B-1)/2)
-    #b_diag = block super/sub diagonals
-    b_diag_C = -(-s_diag_C//block_size)
-    print("nnz_C: ", nnz_C, " s_diag_C: ", s_diag_C, " b_diag_C: ", b_diag_C)
+    # Input assumption A & B have the the same number of upper and lower bandwidths
+    # bandwidth of C
+    bw_C = int((bw_A-1))+int((bw_B-1))+1
+
+    # number of band diagonals
+    band_diag_A = int((bw_A-1)/2)
+    band_diag_B = int((bw_B-1)/2)
+    band_diag_C = int((bw_C-1)/2)
+
+    # number of block diagonals
+    block_diag_A = -(-band_diag_A//block_size)
+    block_diag_B = -(-band_diag_B//block_size)
+    block_diag_C = -(-band_diag_C//block_size)
+
+    print("block_diag_A ", block_diag_A, "block_diag_B ", block_diag_B, "block_diag_C ", block_diag_C)
 
     C = np.zeros((A.shape[0], B.shape[1]), dtype=A.dtype)
     #print("A:", A)
@@ -259,10 +267,10 @@ def naive_blocked_banded_mm(
     for i in range(-(-C.shape[0]//block_size)):
         i_ = slice(i*block_size, min(C.shape[0], (i+1)*block_size))
         #print("i_:", slice(i*block_size, min(C.shape[0], (i+1)*block_size)))
-        for j in range(max(0, i-b_diag_C), min(i+b_diag_C+1, -(-C.shape[1]//block_size))):
+        for j in range(max(0, i-block_diag_C), min(i+block_diag_C+1, -(-C.shape[1]//block_size))):
             j_ = slice(j*block_size, min(C.shape[1], (j+1)*block_size))
             #print("j_:", slice(j*block_size, min(C.shape[1], (j+1)*block_size)))
-            for k in range(max(0, i-int((nnz_A-1)/2), j-int((nnz_B-1)/2)), min(i+int((nnz_A-1)/2)+1, j+int((nnz_B-1)/2)+1, -(-A.shape[1]//block_size))):
+            for k in range(max(0, i-block_diag_A, j-block_diag_B), min(i+block_diag_A+1, j+block_diag_B+1, -(-A.shape[1]//block_size))):
                 k_ = slice(k*block_size, min(A.shape[1], (k+1)*block_size))
                 #print("k_:", slice(k*block_size, min(A.shape[1], (k+1)*block_size)))
                 flag = False

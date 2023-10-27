@@ -20,6 +20,5 @@ class TestGBMM(TestCase):
         self.B = banded_matrix_generator(8, 2, 2)
         self.C_ref = np.matmul(self.A,self.B)
 
-        C = np.zeros((self.A.shape[0], self.B.shape[1]))
-        C = naive_blocked_banded_mm(C, self.A, self.B, 2, 2)
+        C = naive_blocked_banded_mm(self.A, 5, self.B, 5, 3)
         self.assertTrue(np.allclose(C, self.C_ref))
