@@ -5,8 +5,8 @@ General banded matrix multiplication
 
 import numpy as np
 
-from matrix_utils import banded_matrix_generator, binary_grid
-from naive_mm import naive_banded_mm
+from banded_mm.matrix_utils import banded_matrix_generator, binary_grid
+from banded_mm.naive_mm import naive_banded_mm
 
 def _gbmm_BLK_outer(
         C: np.ndarray,

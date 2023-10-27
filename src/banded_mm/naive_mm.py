@@ -12,6 +12,7 @@ Modul containing different matrix multiplication algorithms:
 
 import numpy as np
 
+from banded_mm.matrix_utils import empty_block
 
 # Naive (Textbook) dense matrix multiplication (3-loops)
 def naive_dense_mm(A, B):
@@ -160,7 +161,7 @@ def naive_banded_mm(A, au, al, B, bu, bl):
 # Naive EXPLICITLY blocked gbmm
 def blocking(matrix: np.ndarray, block_size: int):
     row, col = matrix.shape
-    row_blocks, col_blocks = math.ceil(row/block_size), math.ceil(col/block_size)
+    row_blocks, col_blocks = -(-row//block_size), -(-col//block_size)
     blocked_matrix = []
     
     print(matrix)
@@ -247,7 +248,7 @@ def naive_blocked_banded_mm(
     #s_diag = super/sub diagonals
     s_diag_C = int((nnz_C-1)/2) #((nnz_A-1)/2)+((nnz_B-1)/2)
     #b_diag = block super/sub diagonals
-    b_diag_C = ceil(s_diag_C/block_size)
+    b_diag_C = -(-s_diag_C//block_size)
     print("nnz_C: ", nnz_C, " s_diag_C: ", s_diag_C, " b_diag_C: ", b_diag_C)
 
     C = np.zeros((A.shape[0], B.shape[1]), dtype=A.dtype)
@@ -255,13 +256,13 @@ def naive_blocked_banded_mm(
     #print("B:", B)
     #print("C:", C)
     empty_blocks = 0
-    for i in range(ceil(C.shape[0]/block_size)):
+    for i in range(-(-C.shape[0]//block_size)):
         i_ = slice(i*block_size, min(C.shape[0], (i+1)*block_size))
         #print("i_:", slice(i*block_size, min(C.shape[0], (i+1)*block_size)))
-        for j in range(max(0, i-b_diag_C), min(i+b_diag_C+1, ceil(C.shape[1]/block_size))):
+        for j in range(max(0, i-b_diag_C), min(i+b_diag_C+1, -(-C.shape[1]//block_size))):
             j_ = slice(j*block_size, min(C.shape[1], (j+1)*block_size))
             #print("j_:", slice(j*block_size, min(C.shape[1], (j+1)*block_size)))
-            for k in range(max(0, i-int((nnz_A-1)/2), j-int((nnz_B-1)/2)), min(i+int((nnz_A-1)/2)+1, j+int((nnz_B-1)/2)+1, ceil(A.shape[1]/block_size))):
+            for k in range(max(0, i-int((nnz_A-1)/2), j-int((nnz_B-1)/2)), min(i+int((nnz_A-1)/2)+1, j+int((nnz_B-1)/2)+1, -(-A.shape[1]//block_size))):
                 k_ = slice(k*block_size, min(A.shape[1], (k+1)*block_size))
                 #print("k_:", slice(k*block_size, min(A.shape[1], (k+1)*block_size)))
                 flag = False
