@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: banded-mm
-Version: 0.1.0.dev15+g4a1a93c
+Version: 0.1.0.dev19+g4ec2e7b.d20231109
 Summary: Banded Matrix Multiplication Alogrithms Library
 Home-page: https://github.com/alexreduts/banded-mm
 Author: Alex Studer

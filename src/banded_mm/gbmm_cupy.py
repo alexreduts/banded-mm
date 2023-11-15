@@ -1,4 +1,10 @@
 import numpy as np
+import os
+#os.environ["CUDA_PATH"] = "/usr/local/cuda"
+#os.environ["LD_LIBRARY_PATH"] = "/usr/local/cuda/lib64"
+
+#print(os.listdir(os.environ.get("LD_LIBRARY_PATH")))
+#print("LD_LIBRARY_PATH", os.environ.get("LD_LIBRARY_PATH"))
 import cupy as cp
 
 from banded_mm.matrix_utils import banded_matrix_generator, binary_grid
@@ -110,7 +116,7 @@ def _gbmm_BB_inner(
             #A11 is bxb
             A1x_ = slice(AM_.start, AM_.start+b)
 
-            E[E1_, :] = cp.asnumpy(E[E1_, :] + cp.matmul(cp.asarray(A[A1x_, Ax1_]), cp.asarray(D[D1_, :])))
+            E[E1_, :] = cp.asnumpy(cp.asarray(E[E1_, :]) + cp.matmul(cp.asarray(A[A1x_, Ax1_]), cp.asarray(D[D1_, :])))
 
         if D[D0_, :].shape[0] > (A.shape[1]-kl-1):
             #E3_ has 0 rows
@@ -131,7 +137,7 @@ def _gbmm_BB_inner(
         E4_ = slice(E3_.stop, EB_.stop)
         A4x_ = slice(A3x_.stop, AB_.stop)
 
-        E[E2_, :] = cp.asnumpy(E[E2_, :] + cp.matmul(cp.asarray(A[A2x_, Ax1_]),cp.asarray(D[D1_, :])))
+        E[E2_, :] = cp.asnumpy(cp.asarray(E[E2_, :]) + cp.matmul(cp.asarray(A[A2x_, Ax1_]),cp.asarray(D[D1_, :])))
 
         # Adjust partition
         ET_ = slice(E0_.start, E1_.stop)
@@ -172,6 +178,6 @@ H = gbmm_BB(C, A, 2, 7, B, 1, 6)
 
 #print("H", H)
 #print("T", T)
-#print("Diff\n", H-T)
-binary_grid(H-T)
+print("Diff\n", H-T)
+#binary_grid(H-T)
 assert np.allclose(H, T)
