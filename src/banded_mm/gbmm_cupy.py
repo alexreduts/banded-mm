@@ -20,32 +20,29 @@ def _gbmm_gpu_outer(
 
     n = C.shape[1]
 
-    # Initialize Iterators
-    C_iter = 0
-    B_iter = 0
+    # Tune for HW
+    c = 4
 
-    while C_iter < n:
-        # Tune for HW
-        c = 4
+    # Initialize Partition
+    Cx1 = slice(0, c)
+    Bx1 = slice(0, c)
 
-        # Partition
-        C_col = slice(C_iter, C_iter+c)
-        B_col = slice(B_iter, B_iter+c)
+    while Cx1.start < n:
 
         # Shrink blocks to bandwidth
-        C_row = slice(max(0, C_col.start - ku_C), min(n, C_col.stop + kl_C))
-        B_row = slice(max(0, B_col.start - ku_B), min(n, B_col.stop + kl_B))
+        C1x = slice(max(0, Cx1.start - ku_C), min(n, Cx1.stop + kl_C))
+        B1x = slice(max(0, Bx1.start - ku_B), min(n, Bx1.stop + kl_B))
 
         # Adjust number of upper and lower bands matching subblocks
-        ku = ku_A + (C_row.start - B_row.start)
-        kl = kl_A - (C_row.start - B_row.start)
+        ku = ku_A + (C1x.start - B1x.start)
+        kl = kl_A - (C1x.start - B1x.start)
 
         # inner loop
-        C[C_row, C_col] = _gbmm_gpu_inner(C[C_row, C_col], A[C_row, B_row], B[B_row, B_col], ku, kl)
+        C[C1x, Cx1] = _gbmm_gpu_inner(C[C1x, Cx1], A[C1x, B1x], B[B1x, Bx1], ku, kl)
 
-        # Adjust Iterators
-        C_iter += c
-        B_iter += c
+        # Adjust Partition
+        Cx1 = slice(Cx1.start+c, Cx1.stop+c)
+        Bx1 = slice(Bx1.start+c, Bx1.stop+c)
 
     return C
 
@@ -62,38 +59,54 @@ def _gbmm_gpu_inner(
     k = D.shape[0]
 
     # Initialize Iterators
-    E_iter = 0
-    E_block = kl
-    D_iter = 0
+    #E_iter = 0
+    #E_block = kl
+    #D_iter = 0
 
-    while E_iter < m:
-        b = 3
+    # Tune for HW
+    b = 3
 
-        # Partition
-        D1_ = slice(D_iter, D_iter+b)
+    # Inititalize Partition
+    D1x = slice(0, b)
 
-        if D_iter < (ku+1):
-            E1_ = slice(E_iter, E_iter)
+    E1x = slice(0, 0)
+    E2x = slice(0, kl)
+    E3x = slice(kl, kl)
+
+    while E1x.start < m:
+    
+        if D1x.start < (ku+1):
+            # Repartition
+            E1x = slice(E1x.start, E1x.start)
 
         else:
-            E1_ = slice(E_iter, E_iter+b)
-            E[E1_, :] = cp.asnumpy(cp.asarray(E[E1_, :]) + cp.matmul(cp.asarray(A[E1_, D1_]), cp.asarray(D[D1_, :])))
-            E_iter += b
+            # Repartition
+            E1x = slice(E1x.start, E1x.start+b)
+            # Compute Kernel on GPU
+            E[E1x, :] = cp.asnumpy(cp.asarray(E[E1x, :]) + cp.matmul(cp.asarray(A[E1x, D1x]), cp.asarray(D[D1x, :])))
+            # Adjust partition
+            E1x = slice(E1x.start+b, E1x.stop)
 
-        if D_iter > (k-kl-1):
-            E3_ = slice(E_block+b, E_block+b)
+        if D1x.start > (k-kl-1):
+            # Repartition
+            E3x = slice(E3x.start+b, E3x.start+b)
 
         else:
-            E3_ = slice(E_block, E_block+b)
-            E[E3_, :] = cp.asnumpy(cp.asarray(E[E3_, :]) + cp.matmul(cp.asarray(A[E3_, D1_]),cp.asarray(D[D1_, :])))
+            # Repartition
+            E3x = slice(E3x.start, E3x.start+b)
+            # Compute Kernel on GPU
+            E[E3x, :] = cp.asnumpy(cp.asarray(E[E3x, :]) + cp.matmul(cp.asarray(A[E3x, D1x]),cp.asarray(D[D1x, :])))
 
-        E2_ = slice(E1_.stop, E3_.start)
-        E[E2_, :] = cp.asnumpy(cp.asarray(E[E2_, :]) + cp.matmul(cp.asarray(A[E2_, D1_]),cp.asarray(D[D1_, :])))
+        # Repartition
+        E2x = slice(E1x.stop, E3x.start)
+        # Compute Kernel on GPU
+        E[E2x, :] = cp.asnumpy(cp.asarray(E[E2x, :]) + cp.matmul(cp.asarray(A[E2x, D1x]),cp.asarray(D[D1x, :])))
 
         # Adjust partition
-        E_block += b
-        D_iter += b
-        assert E_block == (D_iter+kl)
+        D1x = slice(D1x.start+b, D1x.stop+b)
+        E3x = slice(E3x.start+b, E3x.stop)
+
+
 
     return E
 
