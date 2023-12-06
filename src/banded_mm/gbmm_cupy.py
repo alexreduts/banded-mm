@@ -1,17 +1,11 @@
 import numpy as np
-import os
-#os.environ["CUDA_PATH"] = "/usr/local/cuda"
-#os.environ["LD_LIBRARY_PATH"] = "/usr/local/cuda/lib64"
-
-#print(os.listdir(os.environ.get("LD_LIBRARY_PATH")))
-#print("LD_LIBRARY_PATH", os.environ.get("LD_LIBRARY_PATH"))
 import cupy as cp
+import cupyx as cpx
 
-from banded_mm.matrix_utils import banded_matrix_generator, binary_grid
-from banded_mm.naive_mm import naive_banded_mm
+from banded_mm.matrix_utils import banded_matrix_generator
 
 # General banded times banded matrix multiplication (A & B banded)
-def _gbmm_BB_outer(
+def _gbmm_gpu_outer(
         C: np.ndarray,
         A: np.ndarray,
         ku_A: int,
@@ -24,48 +18,39 @@ def _gbmm_BB_outer(
     ku_C = ku_A + ku_B
     kl_C = kl_A + kl_B
 
-    #Partition
-    CL_ = slice(0, 0)
-    CR_ = slice(CL_.stop, C.shape[1])
+    n = C.shape[1]
 
-    BL_ = slice(0, 0)
-    BR_ = slice(BL_.stop, B.shape[1])
-    
-    while CL_.stop < C.shape[1]:
+    # Initialize Iterators
+    C_iter = 0
+    B_iter = 0
+
+    while C_iter < n:
         # Tune for HW
-        c = 5
+        c = 4
 
-        # Repartition
-        C0_ = slice(CL_.start, CL_.stop)
-        C1_ = slice(C0_.stop, C0_.stop+c)
-        C2_ = slice(C1_.stop, CR_.stop)
+        # Partition
+        C_col = slice(C_iter, C_iter+c)
+        B_col = slice(B_iter, B_iter+c)
 
-        B0_ = slice(BL_.start, BL_.stop)
-        B1_ = slice(B0_.stop, B0_.stop+c)
-        B2_ = slice(B1_.stop, BR_.stop)
+        # Shrink blocks to bandwidth
+        C_row = slice(max(0, C_col.start - ku_C), min(n, C_col.stop + kl_C))
+        B_row = slice(max(0, B_col.start - ku_B), min(n, B_col.stop + kl_B))
 
-        C_1 = slice(max(0, C1_.start - ku_C), min(C.shape[1], C1_.stop + kl_C))
-        B_1 = slice(max(0, B1_.start - ku_B), min(B.shape[1], B1_.stop + kl_B))
-
-        ku = ku_A + (C_1.start - B_1.start)
-        kl = kl_A - (C_1.start - B_1.start)
+        # Adjust number of upper and lower bands matching subblocks
+        ku = ku_A + (C_row.start - B_row.start)
+        kl = kl_A - (C_row.start - B_row.start)
 
         # inner loop
-        C[C_1, C1_] = _gbmm_BB_inner(C[C_1, C1_], A[C_1, B_1], B[B_1, B1_], ku, kl)
+        C[C_row, C_col] = _gbmm_gpu_inner(C[C_row, C_col], A[C_row, B_row], B[B_row, B_col], ku, kl)
 
-        binary_grid(C[C_1, C1_])
-
-        # Adjust partition
-        CL_ = slice(C0_.start, C1_.stop)
-        CR_ = slice(CL_.stop, C2_.stop)
-
-        BL_ = slice(B0_.start, B1_.stop)
-        BR_ = slice(BL_.stop, B2_.stop)
+        # Adjust Iterators
+        C_iter += c
+        B_iter += c
 
     return C
 
 
-def _gbmm_BB_inner(
+def _gbmm_gpu_inner(
         E: np.ndarray,
         A: np.ndarray,
         D: np.ndarray,
@@ -73,91 +58,46 @@ def _gbmm_BB_inner(
         kl: int
     ) -> np.ndarray:
 
-    #Partition
-    ET_ = slice(0, 0)
-    EM_ = slice(ET_.stop, ET_.stop+kl)
-    EB_ = slice(EM_.stop, E.shape[0])
+    m = E.shape[0]
+    k = D.shape[0]
 
-    DT_ = slice(0, 0)
-    DB_ = slice(DT_.stop, D.shape[0])
+    # Initialize Iterators
+    E_iter = 0
+    E_block = kl
+    D_iter = 0
 
-    AT_ = slice(0, 0)
-    AM_ = slice(AT_.stop, AT_.stop+kl)
-    AB_ = slice(AM_.stop, A.shape[0])
+    while E_iter < m:
+        b = 3
 
-    AL_ = slice(0, 0)
-    AR_ = slice(AL_.stop, A.shape[1])
+        # Partition
+        D1_ = slice(D_iter, D_iter+b)
 
-    while E[ET_, :].shape[0] < E.shape[0]:
-        
-        # Tune for Hardware
-        b = 4
+        if D_iter < (ku+1):
+            E1_ = slice(E_iter, E_iter)
 
-        # Repartition
-        D0_ = slice(DT_.start, DT_.stop)
-        D1_ = slice(D0_.stop, D0_.stop+b)
-        D2_ = slice(D1_.stop, DB_.stop)
-
-        Ax0_ = slice(AL_.start, AL_.stop)
-        Ax1_ = slice(Ax0_.stop, Ax0_.stop+b)
-        Ax2_ = slice(Ax1_.stop, AR_.stop)
-
-        E0_ = slice(ET_.start, ET_.stop)
-
-        dim_D0 = D[D0_, :].shape[0]
-        if D[D0_, :].shape[0] < (ku+1):
-            #E1_ has 0 rows
-            E1_ = slice(EM_.start, EM_.start)
-            #A11 is emtpy
-            A1x_ = slice(AM_.start, AM_.start)
         else:
-            #E1_ has b rows
-            E1_ = slice(EM_.start, EM_.start+b)
-            #A11 is bxb
-            A1x_ = slice(AM_.start, AM_.start+b)
+            E1_ = slice(E_iter, E_iter+b)
+            E[E1_, :] = cp.asnumpy(cp.asarray(E[E1_, :]) + cp.matmul(cp.asarray(A[E1_, D1_]), cp.asarray(D[D1_, :])))
+            E_iter += b
 
-            E[E1_, :] = cp.asnumpy(cp.asarray(E[E1_, :]) + cp.matmul(cp.asarray(A[A1x_, Ax1_]), cp.asarray(D[D1_, :])))
+        if D_iter > (k-kl-1):
+            E3_ = slice(E_block+b, E_block+b)
 
-        if D[D0_, :].shape[0] > (A.shape[1]-kl-1):
-            #E3_ has 0 rows
-            E3_ = slice(EB_.start+b, EB_.start+b)
-            #A33 is empty
-            A3x_ = slice(AB_.start+b, AB_.start+b)
         else:
-            #E3 has b rows
-            E3_ = slice(EB_.start, EB_.start+b)
-            #A33 is bxb
-            A3x_ = slice(AB_.start, AB_.start+b)
-
-            E[E3_, :] = cp.asnumpy(cp.asarray(E[E3_, :]) + cp.matmul(cp.asarray(A[A3x_, Ax1_]),cp.asarray(D[D1_, :])))
+            E3_ = slice(E_block, E_block+b)
+            E[E3_, :] = cp.asnumpy(cp.asarray(E[E3_, :]) + cp.matmul(cp.asarray(A[E3_, D1_]),cp.asarray(D[D1_, :])))
 
         E2_ = slice(E1_.stop, E3_.start)
-        A2x_ = slice(A1x_.stop, A3x_.start)
-
-        E4_ = slice(E3_.stop, EB_.stop)
-        A4x_ = slice(A3x_.stop, AB_.stop)
-
-        E[E2_, :] = cp.asnumpy(cp.asarray(E[E2_, :]) + cp.matmul(cp.asarray(A[A2x_, Ax1_]),cp.asarray(D[D1_, :])))
+        E[E2_, :] = cp.asnumpy(cp.asarray(E[E2_, :]) + cp.matmul(cp.asarray(A[E2_, D1_]),cp.asarray(D[D1_, :])))
 
         # Adjust partition
-        ET_ = slice(E0_.start, E1_.stop)
-        EM_ = slice(E2_.start, E3_.stop)
-        EB_ = slice(E4_.start, E4_.stop)
-
-        AT_ = slice(0, A1x_.stop)
-        AM_ = slice(A2x_.start, A3x_.stop)
-        AB_ = slice(A4x_.start, A4x_.stop)
-        
-        AL_ = slice(0, Ax1_.stop)
-        AR_ = slice(Ax2_.start, Ax2_.stop)
-
-        DT_ = slice(0, D1_.stop)
-        DB_ = slice(DT_.stop, D2_.stop)
+        E_block += b
+        D_iter += b
+        assert E_block == (D_iter+kl)
 
     return E
 
-def  gbmm_BB(
-        C: np.ndarray,
+def  gbmm_gpu(
         A: np.ndarray,
         ku_A: int,
         kl_A: int,
@@ -165,19 +105,17 @@ def  gbmm_BB(
         ku_B: int,
         kl_B: int
     ):
-    C = _gbmm_BB_outer(C, A, ku_A, kl_A, B, ku_B, kl_B)
+    C = np.zeros((A.shape[0], B.shape[1]))
+    C = _gbmm_gpu_outer(C, A, ku_A, kl_A, B, ku_B, kl_B)
     return C
 
-A = banded_matrix_generator(50, 2, 7)
-B = banded_matrix_generator(50, 1, 6)
-C = np.zeros((A.shape[0], B.shape[1]))
-T = cp.asnumpy(cp.matmul(cp.asarray(A),cp.asarray(B)))
-H = gbmm_BB(C, A, 2, 7, B, 1, 6)
-#H = gbmm_BLK(C, A, B, 2, 7)
-#binary_grid(H)
+if __name__ == "__main__":
 
-#print("H", H)
-#print("T", T)
-print("Diff\n", H-T)
-#binary_grid(H-T)
-assert np.allclose(H, T)
+    A = banded_matrix_generator(24, 2, 1)
+    B = banded_matrix_generator(24, 3, 7)
+    C = gbmm_gpu(A, 2, 1, B, 3, 7)
+
+    T = A @ B
+    #print(C-T)
+    assert np.allclose(C, T)
+    print("Correct Result computed")
