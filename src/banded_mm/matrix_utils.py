@@ -18,14 +18,13 @@ def banded_matrix_generator(n: int, ku: int, kl: int):
     kl: int -> number of superdiagonals
     """
 
-    rng = np.random.default_rng(seed=42)
-    A = np.diag(rng.random(n))
-    
+    A = np.eye(n)
+
     for i in range(1,ku+1):
-        A += np.diag(rng.random(n-i), k=i)
+        A += np.eye(n, k=i)
     
     for i in range(1,kl+1):
-        A += np.diag(rng.random(n-i), k=-i)
+        A += np.eye(n, k=-i)
 
     return A
 
@@ -49,3 +48,16 @@ def binary_grid(matrix: np.ndarray):
     
     """
     plt.imshow(matrix)
+
+
+if __name__ == "__main__":
+
+    import sys
+
+    dimension = sys.argv[1]
+    super_diagonals = sys.argv[2]
+    sub_diagonals = sys.argv[3]
+ 
+    A = banded_matrix_generator(dimension, super_diagonals, sub_diagonals)
+
+    binary_grid(A)

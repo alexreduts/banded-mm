@@ -1,6 +1,6 @@
+#b
 import numpy as np
 import cupy as cp
-import cupyx as cpx
 
 from banded_mm.matrix_utils import banded_matrix_generator
 
@@ -89,6 +89,7 @@ def _gbmm_gpu_inner(
     ) -> np.ndarray:
 
     k = D.shape[0]
+    n = D.shape[1]
     m = A.shape[0]
 
     # Tune for HW
@@ -110,16 +111,15 @@ def _gbmm_gpu_inner(
     events = [cp.cuda.Event() for _ in range(2)]
 
     # Buffer
-    D1 = [cp.empty((block_size_inner, block_size_outer)) for _ in range(2)]
+    D1 = [cp.empty((block_size_inner, n)) for _ in range(2)]
 
     A11 = [cp.empty((block_size_inner, block_size_inner)) for _ in range(2)]
     A21 = [cp.empty((ku+kl+block_size_inner, block_size_inner)) for _ in range(2)]
     A31 = [cp.empty((block_size_inner, block_size_inner)) for _ in range(2)]
 
-    E1 = [cp.empty((block_size_inner, block_size_outer)) for _ in range(2)]
-    E2 = [cp.empty((ku+kl+block_size_inner, block_size_outer)) for _ in range(2)]
-    E3 = [cp.empty((block_size_inner, block_size_outer)) for _ in range(2)]
-
+    #E1 = [cp.empty((block_size_inner, block_size_outer)) for _ in range(2)]
+    #E2 = [cp.empty((ku+kl+block_size_inner, block_size_outer)) for _ in range(2)]
+    #E3 = [cp.empty((block_size_inner, block_size_outer)) for _ in range(2)]
 
     # Iteration step i = 0
 
@@ -133,8 +133,7 @@ def _gbmm_gpu_inner(
 
         D1_x1, A1_x1, A2_x1, A3_x1 = _slicer(0, k, m, ku, kl, block_size_inner)
 
-        print("SLICES ---------------------")
-        print("Loop Nr: ", 0)
+        print("LOOP ", 0, "----------------")
         print("D1 = ", D1_x1, " A1 = ", A1_x1, " A2 = ", A2_x1, " A3 = ", A3_x1)
         print("----------------------------")
 
@@ -153,14 +152,12 @@ def _gbmm_gpu_inner(
             A31[0][:A3_x1.stop-A3_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A3_x1,D1_x1])
             A31_cur = A31[0][:A3_x1.stop-A3_x1.start,:D1_x1.stop-D1_x1.start]
 
-            #E1_cur = E1[0][:A1_x1.stop-A1_x1.start]
-            #E3_cur = E3[0][:A3_x1.stop-A3_x1.start]
-            
-            E1[0][:A1_x1.stop-A1_x1.start] = E1[0][:A1_x1.stop-A1_x1.start] + A11_cur @ D1_cur
-            E2[0][:A2_x1.stop-A2_x1.start] = E2[0][:A2_x1.stop-A2_x1.start] + A21_cur @ D1_cur
-            E3[0][:A3_x1.stop-A3_x1.start] = E3[0][:A3_x1.stop-A3_x1.start] + A31_cur @ D1_cur
+            E[A1_x1, :] = E[A1_x1, :] + cp.asnumpy(A11_cur @ D1_cur)
+            E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
+            E[A3_x1, :] = E[A3_x1, :] + cp.asnumpy(A31_cur @ D1_cur)
+            print("1-Real:", 0, "\n", E)
             events[0].record(stream=stream)
-            E[A1_x1, :] = cp.asnumpy(E1[0][:A1_x1.stop-A1_x1.start])
+ 
 
         elif A1_x1 is not None and A3_x1 is None: 
             A11[0][:A1_x1.stop-A1_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A1_x1,D1_x1])
@@ -168,23 +165,23 @@ def _gbmm_gpu_inner(
 
             #E1_cur = E1[0][:A1_x1.stop-A1_x1.start]
 
-            E1[0][:A1_x1.stop-A1_x1.start] = E1[0][:A1_x1.stop-A1_x1.start] + A11_cur @ D1_cur
-            E2[0][:A2_x1.stop-A2_x1.start] = E2[0][:A2_x1.stop-A2_x1.start] + A21_cur @ D1_cur
+            E[A1_x1, :] = E[A1_x1, :] + cp.asnumpy(A11_cur @ D1_cur)
+            E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
+            print("2-Real:", 0, "\n", E)
             events[0].record(stream=stream)
-            E[A1_x1, :] = cp.asnumpy(E1[0][:A1_x1.stop-A1_x1.start])
 
         elif A1_x1 is None and A3_x1 is not None:
             A31[0][:A3_x1.stop-A3_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A3_x1,D1_x1])
             A31_cur = A31[0][:A3_x1.stop-A3_x1.start,:D1_x1.stop-D1_x1.start]
 
-            #E3_cur = E3[0][:A3_x1.stop-A3_x1.start]
-
-            E2[0][:A2_x1.stop-A2_x1.start] = E2[0][:A2_x1.stop-A2_x1.start] + A21_cur @ D1_cur
-            E3[0][:A3_x1.stop-A3_x1.start] = E3[0][:A3_x1.stop-A3_x1.start] + A31_cur @ D1_cur
+            E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
+            E[A3_x1, :] = E[A3_x1, :] + cp.asnumpy(A31_cur @ D1_cur)
+            print("3-Real:", 0, "\n", E)
             events[0].record(stream=stream)
 
         else:
-            E2[0][:A2_x1.stop-A2_x1.start] = E2[0][:A2_x1.stop-A2_x1.start] + A21_cur @ D1_cur
+            E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
+            print("4-Real:", 0, "\n", E)
             events[0].record(stream=stream)
 
     
@@ -206,8 +203,6 @@ def _gbmm_gpu_inner(
             A21[i % 2][:A2_x1.stop-A2_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A2_x1,D1_x1])
             A21_cur = A21[i % 2][:A2_x1.stop-A2_x1.start,:D1_x1.stop-D1_x1.start]
             
-            #E2_cur = E2[0][:A2_x1.stop-A2_x1.start]
-            
             if A1_x1 is not None and A3_x1 is not None:
                 A11[i % 2][:A1_x1.stop-A1_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A1_x1,D1_x1])
                 A11_cur = A11[i % 2][:A1_x1.stop-A1_x1.start,:D1_x1.stop-D1_x1.start]
@@ -215,46 +210,49 @@ def _gbmm_gpu_inner(
                 A31[i % 2][:A3_x1.stop-A3_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A3_x1,D1_x1])
                 A31_cur = A31[i % 2][:A3_x1.stop-A3_x1.start,:D1_x1.stop-D1_x1.start]
 
-                #E1_cur = E1[0][:A1_x1.stop-A1_x1.start]
-                #E3_cur = E3[0][:A3_x1.stop-A3_x1.start]
-                
                 stream.wait_event(event=events[(i-1) % 2])
-                E1[i % 2][:A1_x1.stop-A1_x1.start] = E1[i % 2][:A1_x1.stop-A1_x1.start] + A11_cur @ D1_cur
-                E2[i % 2][:A2_x1.stop-A2_x1.start] = E2[i % 2][:A2_x1.stop-A2_x1.start] + A21_cur @ D1_cur
-                E3[i % 2][:A3_x1.stop-A3_x1.start] = E3[i % 2][:A3_x1.stop-A3_x1.start] + A31_cur @ D1_cur
-                events[0].record(stream=stream)
-                E[A1_x1, :] = cp.asnumpy(E1[0][:A1_x1.stop-A1_x1.start])
+
+                E[A1_x1, :] = E[A1_x1, :] + cp.asnumpy(A11_cur @ D1_cur)
+                E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
+                E[A3_x1, :] = E[A3_x1, :] + cp.asnumpy(A31_cur @ D1_cur)
+                print("1-Real:", i, "\n", E)
+
+                events[i % 2].record(stream=stream)
 
             elif A1_x1 is not None and A3_x1 is None: 
                 A11[i % 2][:A1_x1.stop-A1_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A1_x1,D1_x1])
-                A11_cur = A11[0][:A1_x1.stop-A1_x1.start,:D1_x1.stop-D1_x1.start]
-
-                #E1_cur = E1[0][:A1_x1.stop-A1_x1.start]
+                A11_cur = A11[i % 2][:A1_x1.stop-A1_x1.start,:D1_x1.stop-D1_x1.start]
 
                 stream.wait_event(event=events[(i-1) % 2])
-                E1[i % 2][:A1_x1.stop-A1_x1.start] = E1[i % 2][:A1_x1.stop-A1_x1.start] + A11_cur @ D1_cur
-                E2[i % 2][:A2_x1.stop-A2_x1.start] = E2[i % 2][:A2_x1.stop-A2_x1.start] + A21_cur @ D1_cur
+
+                E[A1_x1, :] = E[A1_x1, :] + cp.asnumpy(A11_cur @ D1_cur)
+                E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
+                print("2-Real:", i, "\n", E)
+
                 events[i % 2].record(stream=stream)
-                E[A1_x1, :] = cp.asnumpy(E1[0][:A1_x1.stop-A1_x1.start])
 
 
             elif A1_x1 is None and A3_x1 is not None:
                 A31[i % 2][:A3_x1.stop-A3_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A3_x1,D1_x1])
                 A31_cur = A31[i % 2][:A3_x1.stop-A3_x1.start,:D1_x1.stop-D1_x1.start]
 
-                #E3_cur = E3[0][:A3_x1.stop-A3_x1.start]
-
                 stream.wait_event(event=events[(i-1) % 2])
-                E2[i % 2][:A2_x1.stop-A2_x1.start] = E2[i % 2][:A2_x1.stop-A2_x1.start] + A21_cur @ D1_cur
-                E3[i % 2][:A3_x1.stop-A3_x1.start] = E3[i % 2][:A3_x1.stop-A3_x1.start] + A31_cur @ D1_cur
+
+                E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
+                E[A3_x1, :] = E[A3_x1, :] + cp.asnumpy(A31_cur @ D1_cur)
+                print("3-Real:", i, "\n", E)
+
                 events[i % 2].record(stream=stream)
 
             else:
                 stream.wait_event(event=events[(i-1) % 2])
-                E2[i % 2][:A2_x1.stop-A2_x1.start] = E2[i % 2][:A2_x1.stop-A2_x1.start] + A21_cur @ D1_cur
+
+                E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
+                print("4-Real:", i, "\n", E)
+
                 events[i % 2].record(stream=stream)
     
-    print("E: ", E)
+    print("Ref:\n", A @ D)
     return E
 
 def  gbmm_gpu(
@@ -270,12 +268,12 @@ def  gbmm_gpu(
     return C
 
 if __name__ == "__main__":
-
     A = banded_matrix_generator(10, 2, 2)
     B = banded_matrix_generator(10, 0, 2)
     C = gbmm_gpu(A, 2, 2, B, 0, 2)
 
+
     T = A @ B
-    #print(C-T)
+    print(C-T)
     assert np.allclose(C, T)
     print("Correct Result computed")
