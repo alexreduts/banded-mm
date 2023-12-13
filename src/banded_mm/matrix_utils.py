@@ -14,19 +14,24 @@ def banded_matrix_generator(n: int, ku: int, kl: int):
 
     Arguments:
     n: int -> matrix dimension
-    ku: int -> number of subdiagonals
-    kl: int -> number of superdiagonals
+    ku: int -> number of upper band diagonals
+    kl: int -> number of lower band diagonals
     """
-
-    A = np.eye(n)
-
-    for i in range(1,ku+1):
-        A += np.eye(n, k=i)
     
-    for i in range(1,kl+1):
-        A += np.eye(n, k=-i)
+    if ku < 0 or kl < 0:
+        raise ValueError("Bandwidths must be non-negative")
 
-    return A
+    if n <= 0:
+        raise ValueError("Matrix size must be positive")
+
+    matrix = np.zeros((n, n))
+
+    rows, cols = np.indices((n, n))
+    mask = (cols >= rows - kl) & (cols <= rows + ku)
+    
+    matrix[mask] = 1
+
+    return matrix
 
 # Check if a matrix is only zero
 def empty_block(block: np.ndarray):
@@ -54,9 +59,9 @@ if __name__ == "__main__":
 
     import sys
 
-    dimension = sys.argv[1]
-    super_diagonals = sys.argv[2]
-    sub_diagonals = sys.argv[3]
+    dimension = int(sys.argv[1])
+    super_diagonals = int(sys.argv[2])
+    sub_diagonals = int(sys.argv[3])
  
     A = banded_matrix_generator(dimension, super_diagonals, sub_diagonals)
 
