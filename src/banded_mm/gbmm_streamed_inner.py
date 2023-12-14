@@ -12,7 +12,9 @@ def _gbmm_gpu_outer(
         kl_A: int,
         B: np.ndarray,
         ku_B: int,
-        kl_B: int
+        kl_B: int,
+        block_size_inner: int,
+        block_size_outer: int
     ) -> np.ndarray:
 
     ku_C = ku_A + ku_B
@@ -20,12 +22,14 @@ def _gbmm_gpu_outer(
 
     n = C.shape[1]
 
-    # Tune for HW
-    c = 3
+    # Cuda Streams
+    streams = [cp.cuda.Stream(non_blocking=True) for _ in range(2)]
+    # Cuda Events
+    events = [cp.cuda.Event() for _ in range(4)]
 
     # Initialize Partition
-    Cx1 = slice(0, c)
-    Bx1 = slice(0, c)
+    Cx1 = slice(0, block_size_outer)
+    Bx1 = slice(0, block_size_outer)
 
     while Cx1.start < n:
 
@@ -38,11 +42,19 @@ def _gbmm_gpu_outer(
         kl = kl_A - (C1x.start - B1x.start)
 
         # inner loop
-        C[C1x, Cx1] = _gbmm_gpu_inner(C[C1x, Cx1], A[C1x, B1x], B[B1x, Bx1], ku, kl, c)
+        C[C1x, Cx1] = _gbmm_gpu_inner(
+            C[C1x, Cx1],
+            A[C1x, B1x],
+            B[B1x, Bx1],
+            ku, kl,
+            block_size_inner,
+            streams,
+            events
+        )
 
         # Adjust Partition
-        Cx1 = slice(Cx1.start+c, Cx1.stop+c)
-        Bx1 = slice(Bx1.start+c, Bx1.stop+c)
+        Cx1 = slice(Cx1.start+block_size_outer, Cx1.stop+block_size_outer)
+        Bx1 = slice(Bx1.start+block_size_outer, Bx1.stop+block_size_outer)
 
     return C
 
@@ -85,30 +97,29 @@ def _gbmm_gpu_inner(
         D: np.ndarray,
         ku: int,
         kl: int,
-        block_size_outer: int
+        block_size_inner,
+        streams,
+        events
     ) -> np.ndarray:
 
     k = D.shape[0]
     n = D.shape[1]
     m = A.shape[0]
 
-    # Tune for HW
-    block_size_inner = 2
-
-    print("#########################################################")
-    print("PARAMETERS -----------------")
-    print("Shapes: E = ", E.shape, " A = ", A.shape, " D = ", D.shape)
-    print("block_size_outer = ", block_size_outer, " block_size_inner = ", block_size_inner)
-    print("A -> ku = ", ku, " A -> kl = ", kl )
-    print("----------------------------")
+    #print("#########################################################")
+    #print("PARAMETERS -----------------")
+    #print("Shapes: E = ", E.shape, " A = ", A.shape, " D = ", D.shape)
+    #print("block_size_outer = ", block_size_outer, " block_size_inner = ", block_size_inner)
+    #print("A -> ku = ", ku, " A -> kl = ", kl )
+    #print("----------------------------")
 
     # Number of blocks to compute
     num_blocks = -(-k//block_size_inner) #Rounded up
 
     # Streams
-    streams = [cp.cuda.Stream(non_blocking=True) for _ in range(2)]
+    # streams = [cp.cuda.Stream(non_blocking=True) for _ in range(2)]
     # Events
-    events = [cp.cuda.Event() for _ in range(2)]
+    # events = [cp.cuda.Event() for _ in range(2)]
 
     # Buffer
     D1 = [cp.empty((block_size_inner, n)) for _ in range(2)]
@@ -123,27 +134,25 @@ def _gbmm_gpu_inner(
 
     # Iteration step i = 0
 
-    print("SLICES ---------------------")
-    for i in range(0,num_blocks):
-        D1_x1, A1_x1, A2_x1, A3_x1 = _slicer(i, k, m, ku, kl, block_size_inner)
-        print("D1 = ", D1_x1, " A1 = ", A1_x1, " A2 = ", A2_x1, " A3 = ", A3_x1)
-    print("----------------------------")
+    #print("SLICES ---------------------")
+    #for i in range(0,num_blocks):
+    #    D1_x1, A1_x1, A2_x1, A3_x1 = _slicer(i, k, m, ku, kl, block_size_inner)
+    #    print("D1 = ", D1_x1, " A1 = ", A1_x1, " A2 = ", A2_x1, " A3 = ", A3_x1)
+    #print("----------------------------")
     
     with streams[0] as stream:
 
         D1_x1, A1_x1, A2_x1, A3_x1 = _slicer(0, k, m, ku, kl, block_size_inner)
 
-        print("LOOP ", 0, "----------------")
-        print("D1 = ", D1_x1, " A1 = ", A1_x1, " A2 = ", A2_x1, " A3 = ", A3_x1)
-        print("----------------------------")
+        #print("LOOP ", 0, "----------------")
+        #print("D1 = ", D1_x1, " A1 = ", A1_x1, " A2 = ", A2_x1, " A3 = ", A3_x1)
+        #print("----------------------------")
 
         D1[0][:D1_x1.stop-D1_x1.start] = cp.asarray(D[D1_x1, :])
         D1_cur = D1[0][:D1_x1.stop-D1_x1.start]
 
         A21[0][:A2_x1.stop-A2_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A2_x1,D1_x1])
         A21_cur = A21[0][:A2_x1.stop-A2_x1.start,:D1_x1.stop-D1_x1.start]
-        
-        #E2_cur = E2[0][:A2_x1.stop-A2_x1.start]
         
         if A1_x1 is not None and A3_x1 is not None:
             A11[0][:A1_x1.stop-A1_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A1_x1,D1_x1])
@@ -155,7 +164,7 @@ def _gbmm_gpu_inner(
             E[A1_x1, :] = E[A1_x1, :] + cp.asnumpy(A11_cur @ D1_cur)
             E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
             E[A3_x1, :] = E[A3_x1, :] + cp.asnumpy(A31_cur @ D1_cur)
-            print("1-Real:", 0, "\n", E)
+            #print("1-Real:", 0, "\n", E)
             events[0].record(stream=stream)
  
 
@@ -163,11 +172,9 @@ def _gbmm_gpu_inner(
             A11[0][:A1_x1.stop-A1_x1.start,:D1_x1.stop-D1_x1.start] = cp.asarray(A[A1_x1,D1_x1])
             A11_cur = A11[0][:A1_x1.stop-A1_x1.start,:D1_x1.stop-D1_x1.start]
 
-            #E1_cur = E1[0][:A1_x1.stop-A1_x1.start]
-
             E[A1_x1, :] = E[A1_x1, :] + cp.asnumpy(A11_cur @ D1_cur)
             E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
-            print("2-Real:", 0, "\n", E)
+            #print("2-Real:", 0, "\n", E)
             events[0].record(stream=stream)
 
         elif A1_x1 is None and A3_x1 is not None:
@@ -176,12 +183,12 @@ def _gbmm_gpu_inner(
 
             E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
             E[A3_x1, :] = E[A3_x1, :] + cp.asnumpy(A31_cur @ D1_cur)
-            print("3-Real:", 0, "\n", E)
+            #print("3-Real:", 0, "\n", E)
             events[0].record(stream=stream)
 
         else:
             E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
-            print("4-Real:", 0, "\n", E)
+            #print("4-Real:", 0, "\n", E)
             events[0].record(stream=stream)
 
     
@@ -191,12 +198,16 @@ def _gbmm_gpu_inner(
 
         D1_x1, A1_x1, A2_x1, A3_x1 = _slicer(i, k, m, ku, kl, block_size_inner)
 
-        print("SLICES ---------------------")
-        print("Loop Nr: ", i)
-        print("D1 = ", D1_x1, " A1 = ", A1_x1, " A2 = ", A2_x1, " A3 = ", A3_x1)
-        print("----------------------------")
+        #print("SLICES ---------------------")
+        #print("Loop Nr: ", i)
+        #print("D1 = ", D1_x1, " A1 = ", A1_x1, " A2 = ", A2_x1, " A3 = ", A3_x1)
+        
 
         with streams[i % 2] as stream:
+
+            #print("Stream Nr. ", (i % 2), ": ", stream)
+            #print("----------------------------")
+            
             D1[i % 2][:D1_x1.stop-D1_x1.start] = cp.asarray(D[D1_x1, :])
             D1_cur = D1[i % 2][:D1_x1.stop-D1_x1.start]
 
@@ -215,7 +226,7 @@ def _gbmm_gpu_inner(
                 E[A1_x1, :] = E[A1_x1, :] + cp.asnumpy(A11_cur @ D1_cur)
                 E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
                 E[A3_x1, :] = E[A3_x1, :] + cp.asnumpy(A31_cur @ D1_cur)
-                print("1-Real:", i, "\n", E)
+                #print("1-Real:", i, "\n", E)
 
                 events[i % 2].record(stream=stream)
 
@@ -227,7 +238,7 @@ def _gbmm_gpu_inner(
 
                 E[A1_x1, :] = E[A1_x1, :] + cp.asnumpy(A11_cur @ D1_cur)
                 E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
-                print("2-Real:", i, "\n", E)
+                #print("2-Real:", i, "\n", E)
 
                 events[i % 2].record(stream=stream)
 
@@ -240,7 +251,7 @@ def _gbmm_gpu_inner(
 
                 E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
                 E[A3_x1, :] = E[A3_x1, :] + cp.asnumpy(A31_cur @ D1_cur)
-                print("3-Real:", i, "\n", E)
+                #print("3-Real:", i, "\n", E)
 
                 events[i % 2].record(stream=stream)
 
@@ -248,11 +259,11 @@ def _gbmm_gpu_inner(
                 stream.wait_event(event=events[(i-1) % 2])
 
                 E[A2_x1, :] = E[A2_x1, :] + cp.asnumpy(A21_cur @ D1_cur)
-                print("4-Real:", i, "\n", E)
+                #print("4-Real:", i, "\n", E)
 
                 events[i % 2].record(stream=stream)
     
-    print("Ref:\n", A @ D)
+    #print("Ref:\n", A @ D)
     return E
 
 def  gbmm_gpu(
@@ -261,18 +272,43 @@ def  gbmm_gpu(
         kl_A: int,
         B: np.ndarray,
         ku_B: int,
-        kl_B: int
+        kl_B: int,
+        block_size_outer,
+        block_size_inner
     ):
     C = np.zeros((A.shape[0], B.shape[1]))
-    C = _gbmm_gpu_outer(C, A, ku_A, kl_A, B, ku_B, kl_B)
+    C = _gbmm_gpu_outer(C, A, ku_A, kl_A, B, ku_B, kl_B, block_size_outer, block_size_inner)
     return C
 
 if __name__ == "__main__":
-    A = banded_matrix_generator(10, 2, 2)
-    B = banded_matrix_generator(10, 0, 2)
-    C = gbmm_gpu(A, 2, 2, B, 0, 2)
 
+    import sys
+    
+    flagged = False
+    try:
+        if sys.argv[1] == "--profiling":
+            flagged = True
+    except:
+        pass
 
+    if flagged:
+        print("Profiling Setup Used")
+        print("Generating band matrices")
+        A = banded_matrix_generator(10000, 2400, 2900)
+        B = banded_matrix_generator(10000, 3000, 800)
+
+        print("Calculating gbmm_gpu")
+        C = gbmm_gpu(A, 2400, 2900, B, 3000, 8000, 300, 200)
+    else:
+        print("Debug Setup Used")
+        print("Generating band matrices")
+        A = banded_matrix_generator(10, 2, 2)
+        B = banded_matrix_generator(10, 0, 2)
+
+        print("Calculating gbmm_gpu")
+        C = gbmm_gpu(A, 2, 2, B, 0, 2, 3, 2)
+
+    print("Calculating Ref with numpy")
     T = A @ B
     print(C-T)
     assert np.allclose(C, T)
