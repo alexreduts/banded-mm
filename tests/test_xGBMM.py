@@ -7,13 +7,13 @@ from unittest import TestCase
 
 import numpy as np
 
-from banded_mm.xGBMM_streamed import xGBMM_streamed, _xGBMM_inner
+from banded_mm.xGBMM_streamed import xGBMM_streamed, _slicer
 from banded_mm.matrix_utils import banded_matrix_generator
 
 class TestxGBMM(TestCase):
 
     def setUP(self):
-        pass 
+        pass
 
     def test_diagonal(self):
         A_rect = banded_matrix_generator(5, 10, 0, 0)
@@ -62,6 +62,11 @@ class TestxGBMM(TestCase):
             np.allclose(C_square, REF_square),
             "Squared Diagonal Case failed"
         )
+
+    def test_inner_loop_slicing(self):
+
+        print(_slicer(1, 5, 7, 0, 2, 2))
+
 
     def test_inner_loop_banded_no_overlap(self):
         A_rect = banded_matrix_generator(5, 10, 1, 2)

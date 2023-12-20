@@ -112,6 +112,46 @@ def sinv_rgf_gpu(A: np.ndarray, block_size: int) -> cp.ndarray:
     
     return B
 
+def sinv_rgf_cupy(A: np.ndarray, block_size: int) -> np.ndarray:
+
+    # Assumption: block_size divides A.shape[0] evenly
+    num_blocks = A.shape[0] // block_size
+
+    # Storage for the full backward substitution 
+    B = np.empty_like(A)
+    
+    # 0. Inverse of the first block
+    B[:block_size, :block_size] = np.linalg.inv(A[:block_size, :block_size])
+
+    # 1. Forward substitution (performed left to right)
+    for i in range(1, num_blocks, 1):
+
+        l_slice = slice((i-1)*block_size, i*block_size)
+        d_slice = slice(i*block_size, (i+1)*block_size)
+        u_slice = slice((i+1)*block_size, (i+2)*block_size)
+
+        B[d_slice, d_slice] = cp.asnumpy(cp.linalg.inv(cp.asarray(A[d_slice, d_slice]) -
+                                                       cp.asarray(A[d_slice, l_slice]) @
+                                                       cp.asarray(B[l_slice, l_slice]) @
+                                                       cp.asarray(A[l_slice, d_slice])))
+
+    # 2. Backward substitution (performed right to left)
+    #for i in range(num_blocks - 2, -1, -1):
+
+    #    l_slice = slice((i-1)*block_size, i*block_size)
+    #    d_slice = slice(i*block_size, (i+1)*block_size)
+    #    u_slice = slice((i+1)*block_size, (i+2)*block_size)
+
+     #   lower_factor = B[u_slice, u_slice] @ A[u_slice, d_slice] @ B[d_slice, d_slice]
+      #  B[u_slice, d_slice] = -lower_factor
+        # Assumption: A is not symmetric
+    #    tmp = B[d_slice, d_slice] @ A[d_slice, u_slice]
+    #    B[d_slice, u_slice] = -tmp @ B[u_slice, u_slice]
+    #    B[d_slice, d_slice] += tmp @ lower_factor
+    
+    # return B
+
+
 
 if __name__ == "__main__":
 
@@ -127,3 +167,4 @@ if __name__ == "__main__":
     A[:] = rng.random((N, N)) + 1j * rng.random((N, N))
 
     B = sinv_rgf_gpu(A, block_size)
+    #B = sinv_rgf_cupy(A, block_size)
