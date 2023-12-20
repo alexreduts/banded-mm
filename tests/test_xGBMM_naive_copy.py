@@ -7,7 +7,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from banded_mm.xGBMM_streamed import xGBMM_streamed, _slicer
+from banded_mm.xGBMM_naive_copy import xGBMM_naive_copy
 from banded_mm.matrix_utils import banded_matrix_generator
 
 class TestxGBMM(TestCase):
@@ -25,7 +25,7 @@ class TestxGBMM(TestCase):
         REF_rect = A_rect @ B_rect
         REF_square = A_square @ B_square
 
-        C_rect = xGBMM_streamed(A_rect, 0, 0, B_rect, 0, 0, 3, 2)
+        C_rect = xGBMM_naive(A_rect, 0, 0, B_rect, 0, 0, 3, 2)
         print("\n", C_rect-REF_rect)
         self.assertTrue(
             np.allclose(C_rect, REF_rect),

@@ -134,7 +134,7 @@ def _xGBMM_inner(
 
     return E
 
-def  xGBMM_streamed(
+def  xGBMM_naive_copy(
         A: np.ndarray,
         ku_A: int,
         kl_A: int,
@@ -166,7 +166,7 @@ if __name__ == "__main__":
         B = banded_matrix_generator(10000, 3000, 800)
 
         print("Calculating gbmm_gpu")
-        C = xGBMM_streamed(A, 2400, 2900, B, 3000, 800, 3000, 3000)
+        C = xGBMM_naive_copy(A, 2400, 2900, B, 3000, 800, 3000, 3000)
     else:
         print("Debug Setup Used")
         print("Generating band matrices")
@@ -177,7 +177,7 @@ if __name__ == "__main__":
 
         print("Calculating gbmm_gpu")
         #C = gbmm_gpu(A, 2, 2, B, 0, 2, 3, 2)
-        C = xGBMM_streamed(A, 1, 1, B, 1, 1, 3, 2)
+        C = xGBMM_naive_copy(A, 1, 1, B, 1, 1, 3, 2)
 
     print("Calculating Ref with numpy")
     T = A @ B
