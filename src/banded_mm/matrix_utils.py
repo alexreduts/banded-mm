@@ -9,11 +9,12 @@ Simple module containing helper functions:
 import numpy as np
 
 # Banded Matrix Generator
-def banded_matrix_generator(n: int, ku: int, kl: int):
+def banded_matrix_generator(m: int, n: int, kl: int, ku: int):
     """Banded matrix generator
 
     Arguments:
-    n: int -> matrix dimension
+    m: int -> matrix rows
+    n: int -> matrix columns
     ku: int -> number of upper band diagonals
     kl: int -> number of lower band diagonals
     """
@@ -21,12 +22,12 @@ def banded_matrix_generator(n: int, ku: int, kl: int):
     if ku < 0 or kl < 0:
         raise ValueError("Bandwidths must be non-negative")
 
-    if n <= 0:
+    if m <= 0 and n <= 0:
         raise ValueError("Matrix size must be positive")
 
-    matrix = np.zeros((n, n))
+    matrix = np.zeros((m, n))
 
-    rows, cols = np.indices((n, n))
+    rows, cols = np.indices((m, n))
     mask = (cols >= rows - kl) & (cols <= rows + ku)
     
     matrix[mask] = 1
@@ -59,10 +60,12 @@ if __name__ == "__main__":
 
     import sys
 
-    dimension = int(sys.argv[1])
-    super_diagonals = int(sys.argv[2])
-    sub_diagonals = int(sys.argv[3])
+    rows = int(sys.argv[1])
+    columns = int(sys.argv[2])
+    lower_diagonals = int(sys.argv[3])
+    upper_diagonals = int(sys.argv[4])
  
-    A = banded_matrix_generator(dimension, super_diagonals, sub_diagonals)
+    A = banded_matrix_generator(rows, columns, lower_diagonals, upper_diagonals)
 
+    print(A)
     binary_grid(A)
