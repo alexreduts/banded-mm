@@ -6,6 +6,7 @@ import numpy as np
 import cupy as cp
 
 from banded_mm.matrix_utils import banded_matrix_generator
+from banded_mm.xGBMM_naive_copy import xGBMM_naive_copy
 
 # General banded times banded matrix multiplication (A & B banded)
 def _xGBMM_outer(
@@ -134,9 +135,6 @@ def _xGBMM_inner(
         D1_cur, A1_cur, A2_cur, A3_cur = _slicer(0, k, m, ku, kl, block_size_inner)
         D1_next, A1_next, A2_next, A3_next = _slicer(1, k, m, ku, kl, block_size_inner)
 
-        #print(0, "D1_cur", D1_cur, "A1_cur", A1_cur, "A2_cur", A2_cur, "A3_cur", A3_cur, "A1_next", A1_next, "A2_next", A2_next)
-        
-
         D1[0][:D1_cur.stop-D1_cur.start] = cp.asarray(D[D1_cur, :])
 
         if A1_cur.stop > A1_cur.start:
@@ -148,7 +146,6 @@ def _xGBMM_inner(
         if A3_cur.stop > A3_cur.start:
             A31[0][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A3_cur,D1_cur])
         
-        #print("Befor E123[0]", 0, "\n", E123[0])
 
         if A1_cur.stop > A1_cur.start:
             E123[0][A1_cur, :] = E123[0][A1_cur, :] + A11[0][:A1_cur.stop-A1_cur.start,:D1_cur.stop-D1_cur.start] @ D1[0][:D1_cur.stop-D1_cur.start]
@@ -159,7 +156,6 @@ def _xGBMM_inner(
         if A3_cur.stop > A3_cur.start:
             E123[0][A3_cur, :] = E123[0][A3_cur, :] + A31[0][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] @ D1[0][:D1_cur.stop-D1_cur.start]
 
-        #print("After E123[0]", 0, "\n", E123[0])
         E123[1][A2_cur.start:A3_cur.stop, :] = E123[0][A2_cur.start:A3_cur.stop, :]
 
         events[0].record(stream=stream)
@@ -177,8 +173,6 @@ def _xGBMM_inner(
 
             D1_cur, A1_cur, A2_cur, A3_cur = _slicer(i, k, m, ku, kl, block_size_inner)
             D1_next, A1_next, A2_next, A3_next = _slicer(i+1, k, m, ku, kl, block_size_inner)
-
-            #print(i, "D1_cur", D1_cur, "A1_cur", A1_cur, "A2_cur", A2_cur, "A3_cur", A3_cur, "A1_next", A1_next, "A2_next", A2_next)
 
             D1[i%2][:D1_cur.stop-D1_cur.start] = cp.asarray(D[D1_cur, :])
 
@@ -202,7 +196,6 @@ def _xGBMM_inner(
             if A3_cur.stop > A3_cur.start:
                 E123[i%2][A3_cur, :] = E123[i%2][A3_cur, :] + A31[i%2][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] @ D1[i%2][:D1_cur.stop-D1_cur.start]
 
-            #print("After E123[i%2]", i, "\n", E123[i%2])
             E123[(i+1)%2][A2_cur.start:A3_cur.stop, :] = E123[i%2][A2_cur.start:A3_cur.stop, :]
 
             events[i%2].record(stream=stream)
@@ -213,8 +206,6 @@ def _xGBMM_inner(
             if i >= (num_blocks-1):
                 E[A1_cur.start:A3_cur.stop, :] = cp.asnumpy(E123[i%2][A1_cur.start:A3_cur.stop, :])
     
-    #print("Ref\n", A @ D)
-    #print("E\n", E)
     return E
 
 def  xGBMM_streamed(
@@ -234,6 +225,7 @@ def  xGBMM_streamed(
 if __name__ == "__main__":
 
     import sys
+    import time
     
     flagged = False
     try:
@@ -245,11 +237,17 @@ if __name__ == "__main__":
     if flagged:
         print("Profiling Setup Used")
         print("Generating band matrices")
-        A = banded_matrix_generator(10000, 2400, 2900)
-        B = banded_matrix_generator(10000, 3000, 800)
+        A = banded_matrix_generator(10000, 10000, 2400, 2900)
+        B = banded_matrix_generator(10000, 10000, 3000, 800)
 
-        print("Calculating gbmm_gpu")
-        C = xGBMM_streamed(A, 2400, 2900, B, 3000, 800, 3000, 3000)
+        print("Calculating xGBMM_streamed")
+        total_time = 0
+        for i in range(10):
+            start_time = time.time()
+            C = xGBMM_streamed(A, 2400, 2900, B, 3000, 800, 3000, 3000)
+            end_time = time.time()
+            total_time += end_time - start_time
+        print(f"Average Time taken: {total_time/10} seconds")
     else:
         print("Debug Setup Used")
         print("Generating band matrices")
@@ -258,13 +256,31 @@ if __name__ == "__main__":
         A = banded_matrix_generator(10, 10, 2, 2)
         B = banded_matrix_generator(10, 10, 2, 0)
 
-        print("Calculating gbmm_gpu")
+        print("Calculating xGBMM")
         #C = gbmm_gpu(A, 2, 2, B, 0, 2, 3, 2)
         C = xGBMM_streamed(A, 2, 2, B, 2, 0, 3, 2)
+        
 
     print("Calculating Ref with numpy")
+    #total_time = 0
+    #for i in range(10):
+    #    start_time = time.time()
+    #    T = A @ B
+    #    end_time = time.time()
+    #    total_time += end_time - start_time
+    #print(f"Average Time taken: {total_time/10} seconds")
     T = A @ B
-    print(T)
-    print(C)
+
+    #print("Calculating xGBMM_naive_copy")
+    #total_time = 0
+    #for i in range(10):
+    #    start_time = time.time()
+    #    C = xGBMM_naive_copy(A, 2400, 2900, B, 3000, 800, 3000, 3000)
+    #    end_time = time.time()
+    #    total_time += end_time - start_time
+    #print(f"Average Time taken: {total_time/10} seconds")
+
+    #print(T)
+    #print(C)
     assert np.allclose(C, T)
     print("Correct Result computed")

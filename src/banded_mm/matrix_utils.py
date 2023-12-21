@@ -2,6 +2,7 @@
 
 Simple module containing helper functions:
 - Banded matrix generator
+- Empty matrix check
 - Binary grid matrix visualisation
 
 """
@@ -41,8 +42,6 @@ def empty_block(block: np.ndarray):
     ref_block = np.zeros((block.shape[0], block.shape[1]))
 
     return np.allclose(ref_block, block)
-
-
 
 
 import matplotlib.pyplot as plt
