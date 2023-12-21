@@ -25,18 +25,38 @@ class TestxGBMM(TestCase):
         REF_rect = A_rect @ B_rect
         REF_square = A_square @ B_square
 
-        C_rect = xGBMM_naive(A_rect, 0, 0, B_rect, 0, 0, 3, 2)
-        print("\n", C_rect-REF_rect)
+        C_rect = xGBMM_naive_copy(A_rect, 0, 0, B_rect, 0, 0, 3, 2)
         self.assertTrue(
             np.allclose(C_rect, REF_rect),
             "Rectangular Diagonal Case failed"
         )
 
-        C_square = xGBMM_streamed(A_square, 0, 0, B_square, 0, 0, 3, 2)
-        print("\n", C_square-REF_square)
+        C_square = xGBMM_naive_copy(A_square, 0, 0, B_square, 0, 0, 3, 2)
         self.assertTrue(
             np.allclose(C_square, REF_square),
             "Squared Diagonal Case failed"
+        )
+
+    def test_dense(self):
+        A_rect = banded_matrix_generator(5, 10, 4, 9)
+        B_rect = banded_matrix_generator(10, 5, 9, 4)
+
+        A_square = banded_matrix_generator(10, 10, 9, 9)
+        B_square = banded_matrix_generator(10, 10, 9, 9)
+
+        REF_rect = A_rect @ B_rect
+        REF_square = A_square @ B_square
+
+        C_rect = xGBMM_naive_copy(A_rect, 4, 9, B_rect, 9, 4, 3, 2)
+        self.assertTrue(
+            np.allclose(C_rect, REF_rect),
+            "Rectangular Dense Case failed"
+        )
+
+        C_square = xGBMM_naive_copy(A_square, 9, 9, B_square, 9, 9, 3, 2)
+        self.assertTrue(
+            np.allclose(C_square, REF_square),
+            "Squared Dense Case failed"
         )
 
     def test_banded(self):
@@ -49,24 +69,17 @@ class TestxGBMM(TestCase):
         REF_rect = A_rect @ B_rect
         REF_square = A_square @ B_square
 
-        C_rect = xGBMM_streamed(A_rect, 2, 3, B_rect, 2, 3, 3, 2)
-        print("\n", C_rect-REF_rect)
+        C_rect = xGBMM_naive_copy(A_rect, 2, 3, B_rect, 2, 3, 3, 2)
         self.assertTrue(
             np.allclose(C_rect, REF_rect),
-            "Rectangular Diagonal Case failed"
+            "Rectangular Banded Case failed"
         )
 
-        C_square = xGBMM_streamed(A_square, 2, 3, B_square, 2, 3, 3, 2)
-        print("\n", C_square-REF_square)
+        C_square = xGBMM_naive_copy(A_square, 2, 3, B_square, 2, 3, 3, 2)
         self.assertTrue(
             np.allclose(C_square, REF_square),
-            "Squared Diagonal Case failed"
+            "Squared Banded Case failed"
         )
-
-    def test_inner_loop_slicing(self):
-
-        print(_slicer(1, 5, 7, 0, 2, 2))
-
 
     def test_inner_loop_banded_no_overlap(self):
         A_rect = banded_matrix_generator(5, 10, 1, 2)
@@ -78,15 +91,13 @@ class TestxGBMM(TestCase):
         REF_rect = A_rect @ B_rect
         REF_square = A_square @ B_square
 
-        C_rect = xGBMM_streamed(A_rect, 1, 2, B_rect, 1, 2, 5, 2)
-        print("\n", C_rect-REF_rect)
+        C_rect = xGBMM_naive_copy(A_rect, 1, 2, B_rect, 1, 2, 5, 2)
         self.assertTrue(
             np.allclose(C_rect, REF_rect),
             "Rectangular Inner Loop Banded NO Overlap failed"
         )
 
-        C_square = xGBMM_streamed(A_square, 2, 3, B_square, 2, 3, 10, 2)
-        print("\n", C_square-REF_square)
+        C_square = xGBMM_naive_copy(A_square, 2, 3, B_square, 2, 3, 10, 2)
         self.assertTrue(
             np.allclose(C_square, REF_square),
             "Squared Inner Loop Banded NO Overlap failed"
@@ -102,15 +113,13 @@ class TestxGBMM(TestCase):
         REF_rect = A_rect @ B_rect
         REF_square = A_square @ B_square
 
-        C_rect = xGBMM_streamed(A_rect, 2, 3, B_rect, 2, 3, 5, 2)
-        print("\n", C_rect-REF_rect)
+        C_rect = xGBMM_naive_copy(A_rect, 2, 3, B_rect, 2, 3, 5, 3)
         self.assertTrue(
             np.allclose(C_rect, REF_rect),
             "Rectangular Inner Loop Banded With Overlap failed"
         )
 
-        C_square = xGBMM_streamed(A_square, 2, 3, B_square, 2, 3, 10, 2)
-        print("\n", C_square-REF_square)
+        C_square = xGBMM_naive_copy(A_square, 4, 5, B_square, 4, 5, 10, 3)
         self.assertTrue(
             np.allclose(C_square, REF_square),
             "Squared Inner Loop Banded With Overlap failed"

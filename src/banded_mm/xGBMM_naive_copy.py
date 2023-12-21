@@ -9,21 +9,22 @@ from banded_mm.matrix_utils import banded_matrix_generator
 
 # General banded times banded matrix multiplication (A & B banded)
 def _xGBMM_outer(
-        C: np.ndarray,
-        A: np.ndarray,
+        C: cp.ndarray,
+        A: cp.ndarray,
         ku_A: int,
         kl_A: int,
-        B: np.ndarray,
+        B: cp.ndarray,
         ku_B: int,
         kl_B: int,
         block_size_outer: int,
         block_size_inner: int
-    ) -> np.ndarray:
+    ) -> cp.ndarray:
 
     ku_C = ku_A + ku_B
     kl_C = kl_A + kl_B
 
     n = C.shape[1]
+    k = B.shape[0]
 
     # Initialize Partition
     Cx1 = slice(0, block_size_outer)
@@ -33,7 +34,7 @@ def _xGBMM_outer(
 
         # Shrink blocks to bandwidth
         C1x = slice(max(0, Cx1.start - ku_C), min(n, Cx1.stop + kl_C))
-        B1x = slice(max(0, Bx1.start - ku_B), min(n, Bx1.stop + kl_B))
+        B1x = slice(max(0, Bx1.start - ku_B), min(k, Bx1.stop + kl_B))
 
         # Adjust number of upper and lower bands matching subblocks
         ku = ku_A + (C1x.start - B1x.start)
@@ -76,15 +77,15 @@ def _slicer(
     
     D1 = slice(pos, min(k, pos+block_size_inner))
 
-    if pos < (ku+1):
+    if pos < ku:
         A1 = slice(band_limit_upper, band_limit_upper)
     else:
-        A1 = slice(band_limit_upper, band_limit_upper+block_size_inner)
+        A1 = slice(band_limit_upper, min(band_limit_upper+block_size_inner, m))
 
-    if pos > (k-kl-1):
+    if (pos + block_size_inner) >= (m-kl-1):
         A3 = slice(band_limit_lower, band_limit_lower)
     else:
-        A3 = slice(band_limit_lower-block_size_inner, band_limit_lower)
+        A3 = slice(max(band_limit_lower-block_size_inner, A1.stop), band_limit_lower)
 
     A2 = slice(A1.stop, A3.start)
 
@@ -136,16 +137,22 @@ def _xGBMM_inner(
 
 def  xGBMM_naive_copy(
         A: np.ndarray,
-        ku_A: int,
         kl_A: int,
+        ku_A: int,
         B: np.ndarray,
-        ku_B: int,
         kl_B: int,
+        ku_B: int,
         block_size_outer,
         block_size_inner
     ):
     C = np.zeros((A.shape[0], B.shape[1]))
-    C = _xGBMM_outer(C, A, ku_A, kl_A, B, ku_B, kl_B, block_size_outer, block_size_inner)
+    C = cp.asnumpy(_xGBMM_outer(
+                    cp.asarray(C),
+                    cp.asarray(A), ku_A, kl_A,
+                    cp.asarray(B), ku_B, kl_B,
+                    block_size_outer,
+                    block_size_inner
+    ))
     return C
 
 if __name__ == "__main__":
@@ -162,26 +169,24 @@ if __name__ == "__main__":
     if flagged:
         print("Profiling Setup Used")
         print("Generating band matrices")
-        A = banded_matrix_generator(10000, 2400, 2900)
-        B = banded_matrix_generator(10000, 3000, 800)
+        A = banded_matrix_generator(10000, 10000, 2400, 2900)
+        B = banded_matrix_generator(10000, 10000, 3000, 800)
 
-        print("Calculating gbmm_gpu")
+        print("Calculating xGBMM")
         C = xGBMM_naive_copy(A, 2400, 2900, B, 3000, 800, 3000, 3000)
     else:
         print("Debug Setup Used")
         print("Generating band matrices")
-        #A = banded_matrix_generator(10, 2, 2)
-        #B = banded_matrix_generator(10, 0, 2)
-        A = banded_matrix_generator(10, 1, 1)
-        B = banded_matrix_generator(10, 1, 1)
+        #A = banded_matrix_generator(10, 10, 0, 0)
+        #B = banded_matrix_generator(10, 10, 0, 0)
+        A = banded_matrix_generator(5, 10, 2, 3)
+        B = banded_matrix_generator(10, 5, 2, 3)
 
-        print("Calculating gbmm_gpu")
-        #C = gbmm_gpu(A, 2, 2, B, 0, 2, 3, 2)
-        C = xGBMM_naive_copy(A, 1, 1, B, 1, 1, 3, 2)
+        print("Calculating xGBMM")
+        #C = xGBMM_naive_copy(A, 0, 0, B, 0, 0, 3, 2)
+        C = xGBMM_naive_copy(A, 2, 3, B, 2, 3, 3, 2)
 
     print("Calculating Ref with numpy")
     T = A @ B
-    print(T)
-    print(C)
     assert np.allclose(C, T)
     print("Correct Result computed")
