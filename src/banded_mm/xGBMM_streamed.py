@@ -4,6 +4,7 @@ Streamed implementation of xGBMM
 
 import numpy as np
 import cupy as cp
+import cupyx as cpx
 
 from banded_mm.matrix_utils import banded_matrix_generator
 from banded_mm.xGBMM_naive_copy import xGBMM_naive_copy
@@ -123,9 +124,12 @@ def _xGBMM_inner(
     # Buffers
     D1 = [cp.empty((block_size_inner, n)) for _ in range(2)]
 
-    A11 = [cp.empty((block_size_inner, block_size_inner)) for _ in range(2)]
-    A21 = [cp.empty((ku+kl+block_size_inner, block_size_inner)) for _ in range(2)]
-    A31 = [cp.empty((block_size_inner, block_size_inner)) for _ in range(2)]
+    # A11 = [cp.empty((block_size_inner, block_size_inner)) for _ in range(2)]
+    # A21 = [cp.empty((ku+kl+block_size_inner, block_size_inner)) for _ in range(2)]
+    # A31 = [cp.empty((block_size_inner, block_size_inner)) for _ in range(2)]
+    A11 = [cp.empty(block_size_inner * block_size_inner) for _ in range(2)]
+    A21 = [cp.empty((ku+kl+block_size_inner) * block_size_inner) for _ in range(2)]
+    A31 = [cp.empty(block_size_inner * block_size_inner) for _ in range(2)]
 
     E123 = [cp.zeros((E.shape[0], E.shape[1])) for _ in range(2)]
 
@@ -135,35 +139,47 @@ def _xGBMM_inner(
         D1_cur, A1_cur, A2_cur, A3_cur = _slicer(0, k, m, ku, kl, block_size_inner)
         D1_next, A1_next, A2_next, A3_next = _slicer(1, k, m, ku, kl, block_size_inner)
 
-        D1[0][:D1_cur.stop-D1_cur.start] = cp.asarray(D[D1_cur, :])
+        # D1[0][:D1_cur.stop-D1_cur.start] = cp.asarray(D[D1_cur, :])
+        D1[0][:D1_cur.stop-D1_cur.start].set(D[D1_cur, :])
 
         if A1_cur.stop > A1_cur.start:
-            A11[0][:A1_cur.stop-A1_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A1_cur,D1_cur])
+            # A11[0][:A1_cur.stop-A1_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A1_cur,D1_cur])
+            tA11 = A11[0][:(A1_cur.stop-A1_cur.start) * (D1_cur.stop-D1_cur.start)].reshape((A1_cur.stop-A1_cur.start), (D1_cur.stop-D1_cur.start))
+            tA11.set(A[A1_cur,D1_cur])
 
         if A2_cur.stop > A2_cur.start:
-            A21[0][:A2_cur.stop-A2_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A2_cur,D1_cur])
+            # A21[0][:A2_cur.stop-A2_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A2_cur,D1_cur])
+            tA21 = A21[0][:(A2_cur.stop-A2_cur.start) * (D1_cur.stop-D1_cur.start)].reshape((A2_cur.stop-A2_cur.start), (D1_cur.stop-D1_cur.start))
+            tA21.set(A[A2_cur,D1_cur])
 
         if A3_cur.stop > A3_cur.start:
-            A31[0][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A3_cur,D1_cur])
+            # A31[0][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A3_cur,D1_cur])
+            tA31 = A31[0][:(A3_cur.stop-A3_cur.start) * (D1_cur.stop-D1_cur.start)].reshape((A3_cur.stop-A3_cur.start), (D1_cur.stop-D1_cur.start))
+            tA31.set(A[A3_cur,D1_cur])
         
 
         if A1_cur.stop > A1_cur.start:
-            E123[0][A1_cur, :] = E123[0][A1_cur, :] + A11[0][:A1_cur.stop-A1_cur.start,:D1_cur.stop-D1_cur.start] @ D1[0][:D1_cur.stop-D1_cur.start]
+            # E123[0][A1_cur, :] = E123[0][A1_cur, :] + A11[0][:A1_cur.stop-A1_cur.start,:D1_cur.stop-D1_cur.start] @ D1[0][:D1_cur.stop-D1_cur.start]
+            E123[0][A1_cur, :] = E123[0][A1_cur, :] + tA11 @ D1[0][:D1_cur.stop-D1_cur.start]
 
         if A2_cur.stop > A2_cur.start:
-            E123[0][A2_cur, :] = E123[0][A2_cur, :] + A21[0][:A2_cur.stop-A2_cur.start,:D1_cur.stop-D1_cur.start] @ D1[0][:D1_cur.stop-D1_cur.start]
+            # E123[0][A2_cur, :] = E123[0][A2_cur, :] + A21[0][:A2_cur.stop-A2_cur.start,:D1_cur.stop-D1_cur.start] @ D1[0][:D1_cur.stop-D1_cur.start]
+            E123[0][A2_cur, :] = E123[0][A2_cur, :] + tA21 @ D1[0][:D1_cur.stop-D1_cur.start]
 
         if A3_cur.stop > A3_cur.start:
-            E123[0][A3_cur, :] = E123[0][A3_cur, :] + A31[0][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] @ D1[0][:D1_cur.stop-D1_cur.start]
+            # E123[0][A3_cur, :] = E123[0][A3_cur, :] + A31[0][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] @ D1[0][:D1_cur.stop-D1_cur.start]
+            E123[0][A3_cur, :] = E123[0][A3_cur, :] + tA31 @ D1[0][:D1_cur.stop-D1_cur.start]
 
         E123[1][A2_cur.start:A3_cur.stop, :] = E123[0][A2_cur.start:A3_cur.stop, :]
 
         events[0].record(stream=stream)
 
-        if A1_next.start > A1_cur.start:
-            E[A1_cur.start:A1_next.start, :] = cp.asnumpy(E123[0][A1_cur.start:A1_next.start, :])
-        if num_blocks <= 1:
-                E[A1_cur.start:A3_cur.stop, :] = cp.asnumpy(E123[0][A1_cur.start:A3_cur.stop, :])    
+        # if A1_next.start > A1_cur.start:
+        #     E[A1_cur.start:A1_next.start, :] = cp.asnumpy(E123[0][A1_cur.start:A1_next.start, :])
+        #     # E123[0][A1_cur.start:A1_next.start, :].get(out=E[A1_cur.start:A1_next.start, :])
+        # if num_blocks <= 1:
+        #     E[A1_cur.start:A3_cur.stop, :] = cp.asnumpy(E123[0][A1_cur.start:A3_cur.stop, :])
+        #     # E123[0][A1_cur.start:A3_cur.stop, :].get(out=E[A1_cur.start:A3_cur.stop, :])    
 
 
     # Iteration step i = 1 to i = num_blocks-1
@@ -174,41 +190,55 @@ def _xGBMM_inner(
             D1_cur, A1_cur, A2_cur, A3_cur = _slicer(i, k, m, ku, kl, block_size_inner)
             D1_next, A1_next, A2_next, A3_next = _slicer(i+1, k, m, ku, kl, block_size_inner)
 
-            D1[i%2][:D1_cur.stop-D1_cur.start] = cp.asarray(D[D1_cur, :])
+            # D1[i%2][:D1_cur.stop-D1_cur.start] = cp.asarray(D[D1_cur, :])
+            D1[i%2][:D1_cur.stop-D1_cur.start].set(D[D1_cur, :])
 
             if A1_cur.stop > A1_cur.start:
-                A11[i%2][:A1_cur.stop-A1_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A1_cur,D1_cur])
+                # A11[i%2][:A1_cur.stop-A1_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A1_cur,D1_cur])
+                tA11 = A11[i%2][:(A1_cur.stop-A1_cur.start) * (D1_cur.stop-D1_cur.start)].reshape((A1_cur.stop-A1_cur.start), (D1_cur.stop-D1_cur.start))
+                tA11.set(A[A1_cur,D1_cur])
 
             if A2_cur.stop > A2_cur.start:
-                A21[i%2][:A2_cur.stop-A2_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A2_cur,D1_cur])
+                # A21[i%2][:A2_cur.stop-A2_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A2_cur,D1_cur])
+                tA21 = A21[i%2][:(A2_cur.stop-A2_cur.start) * (D1_cur.stop-D1_cur.start)].reshape((A2_cur.stop-A2_cur.start), (D1_cur.stop-D1_cur.start))
+                tA21.set(A[A2_cur,D1_cur])
 
             if A3_cur.stop > A3_cur.start:
-                A31[i%2][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A3_cur,D1_cur])
+                # A31[i%2][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] = cp.asarray(A[A3_cur,D1_cur])
+                tA31 = A31[i%2][:(A3_cur.stop-A3_cur.start) * (D1_cur.stop-D1_cur.start)].reshape((A3_cur.stop-A3_cur.start), (D1_cur.stop-D1_cur.start))
+                tA31.set(A[A3_cur,D1_cur])
 
             stream.wait_event(event=events[(i-1) % 2])
 
             if A1_cur.stop > A1_cur.start:
-                E123[i%2][A1_cur, :] = E123[i%2][A1_cur, :] + A11[i%2][:A1_cur.stop-A1_cur.start,:D1_cur.stop-D1_cur.start] @ D1[i%2][:D1_cur.stop-D1_cur.start]
+                # E123[i%2][A1_cur, :] = E123[i%2][A1_cur, :] + A11[i%2][:A1_cur.stop-A1_cur.start,:D1_cur.stop-D1_cur.start] @ D1[i%2][:D1_cur.stop-D1_cur.start]
+                E123[i%2][A1_cur, :] = E123[i%2][A1_cur, :] + tA11 @ D1[i%2][:D1_cur.stop-D1_cur.start]
 
             if A2_cur.stop > A2_cur.start:
-                E123[i%2][A2_cur, :] = E123[i%2][A2_cur, :] + A21[i%2][:A2_cur.stop-A2_cur.start,:D1_cur.stop-D1_cur.start] @ D1[i%2][:D1_cur.stop-D1_cur.start]
+                # E123[i%2][A2_cur, :] = E123[i%2][A2_cur, :] + A21[i%2][:A2_cur.stop-A2_cur.start,:D1_cur.stop-D1_cur.start] @ D1[i%2][:D1_cur.stop-D1_cur.start]
+                E123[i%2][A2_cur, :] = E123[i%2][A2_cur, :] + tA21 @ D1[i%2][:D1_cur.stop-D1_cur.start]
 
             if A3_cur.stop > A3_cur.start:
-                E123[i%2][A3_cur, :] = E123[i%2][A3_cur, :] + A31[i%2][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] @ D1[i%2][:D1_cur.stop-D1_cur.start]
+                # E123[i%2][A3_cur, :] = E123[i%2][A3_cur, :] + A31[i%2][:A3_cur.stop-A3_cur.start,:D1_cur.stop-D1_cur.start] @ D1[i%2][:D1_cur.stop-D1_cur.start]
+                E123[i%2][A3_cur, :] = E123[i%2][A3_cur, :] + tA31 @ D1[i%2][:D1_cur.stop-D1_cur.start]
 
             E123[(i+1)%2][A2_cur.start:A3_cur.stop, :] = E123[i%2][A2_cur.start:A3_cur.stop, :]
 
             events[i%2].record(stream=stream)
 
-            if A1_next.start > A1_cur.start:
-                E[A1_cur.start:A1_next.start, :] = cp.asnumpy(E123[i%2][A1_cur.start:A1_next.start, :])
+            # if A1_next.start > A1_cur.start:
+            #     E[A1_cur.start:A1_next.start, :] = cp.asnumpy(E123[i%2][A1_cur.start:A1_next.start, :])
 
-            if i >= (num_blocks-1):
-                E[A1_cur.start:A3_cur.stop, :] = cp.asnumpy(E123[i%2][A1_cur.start:A3_cur.stop, :])
+            # if i >= (num_blocks-1):
+            #     E[A1_cur.start:A3_cur.stop, :] = cp.asnumpy(E123[i%2][A1_cur.start:A3_cur.stop, :])
     
+    for stream in streams:
+        stream.synchronize()
+
     return E
 
 def  xGBMM_streamed(
+        C: np.ndarray,
         A: np.ndarray,
         kl_A: int,
         ku_A: int,
@@ -218,7 +248,7 @@ def  xGBMM_streamed(
         block_size_outer,
         block_size_inner
     ):
-    C = np.zeros((A.shape[0], B.shape[1]))
+    # C = np.zeros((A.shape[0], B.shape[1]))
     C = _xGBMM_outer(C, A, ku_A, kl_A, B, ku_B, kl_B, block_size_outer, block_size_inner)
     return C
 
@@ -237,14 +267,15 @@ if __name__ == "__main__":
     if flagged:
         print("Profiling Setup Used")
         print("Generating band matrices")
-        A = banded_matrix_generator(10000, 10000, 2400, 2900)
-        B = banded_matrix_generator(10000, 10000, 3000, 800)
+        A = banded_matrix_generator(10000, 10000, 50, 50)
+        B = banded_matrix_generator(10000, 10000, 50, 50)
+        C = cpx.zeros_pinned((A.shape[0], B.shape[1]))
 
         print("Calculating xGBMM_streamed")
         total_time = 0
         for i in range(10):
             start_time = time.time()
-            C = xGBMM_streamed(A, 2400, 2900, B, 3000, 800, 3000, 3000)
+            C = xGBMM_streamed(C, A, 50, 50, B, 50, 50, 100, 100)
             end_time = time.time()
             total_time += end_time - start_time
         print(f"Average Time taken: {total_time/10} seconds")
@@ -255,10 +286,11 @@ if __name__ == "__main__":
         #B = banded_matrix_generator(10, 0, 2)
         A = banded_matrix_generator(10, 10, 2, 2)
         B = banded_matrix_generator(10, 10, 2, 0)
+        C = cpx.zeros_pinned((A.shape[0], B.shape[1]))
 
         print("Calculating xGBMM")
         #C = gbmm_gpu(A, 2, 2, B, 0, 2, 3, 2)
-        C = xGBMM_streamed(A, 2, 2, B, 2, 0, 3, 2)
+        C = xGBMM_streamed(C, A, 2, 2, B, 2, 0, 3, 2)
         
 
     print("Calculating Ref with numpy")
