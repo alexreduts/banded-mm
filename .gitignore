@@ -3,3 +3,8 @@ __pycache__
 test-data.txt
 experimental.py
 *.nsys-rep
+
+*.egg-info
+.vscode
+.venv
+venv
