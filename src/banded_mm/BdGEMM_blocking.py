@@ -6,11 +6,9 @@ import numpy as np
 import cupy as cp
 
 from banded_mm.matrix_utils import banded_matrix_generator
-from banded_mm.xGBMM_naive_copy import xGBMM_naive_copy
-
 
 # General banded times banded matrix multiplication (A & B banded)
-def _xGBMM_outer(
+def _BdGEMM_outer(
     C: np.ndarray,
     A: np.ndarray,
     ku_A: int,
@@ -46,7 +44,7 @@ def _xGBMM_outer(
         kl = kl_A - (C1x.start - B1x.start)
 
         # inner loop
-        C[C1x, Cx1] = _xGBMM_inner(
+        C[C1x, Cx1] = _BdGEMM_inner(
             C[C1x, Cx1],
             A[C1x, B1x],
             B[B1x, Bx1],
@@ -94,7 +92,7 @@ def _slicer(iter: int, k: int, m: int, ku: int, kl: int, block_size_inner: int):
     return D1, A1, A2, A3
 
 
-def _xGBMM_inner(
+def _BdGEMM_inner(
     E: np.ndarray,
     A: np.ndarray,
     D: np.ndarray,
@@ -252,7 +250,7 @@ def _xGBMM_inner(
     return E
 
 
-def xGBMM_streamed(
+def BdGEMM_blocking(
     A: np.ndarray,
     kl_A: int,
     ku_A: int,
@@ -263,7 +261,7 @@ def xGBMM_streamed(
     block_size_inner,
 ):
     C = np.zeros((A.shape[0], B.shape[1]))
-    C = _xGBMM_outer(C, A, ku_A, kl_A, B, ku_B, kl_B, block_size_outer, block_size_inner)
+    C = _BdGEMM_outer(C, A, ku_A, kl_A, B, ku_B, kl_B, block_size_outer, block_size_inner)
     return C
 
 
@@ -288,7 +286,7 @@ if __name__ == "__main__":
         total_time = 0
         for i in range(10):
             start_time = time.time()
-            C = xGBMM_streamed(A, 2400, 2900, B, 3000, 800, 3000, 3000)
+            C = BdGEMM_blocking(A, 2400, 2900, B, 3000, 800, 3000, 3000)
             end_time = time.time()
             total_time += end_time - start_time
         print(f"Average Time taken: {total_time/10} seconds")
@@ -302,7 +300,7 @@ if __name__ == "__main__":
 
         print("Calculating xGBMM")
         # C = gbmm_gpu(A, 2, 2, B, 0, 2, 3, 2)
-        C = xGBMM_streamed(A, 2, 2, B, 2, 0, 3, 2)
+        C = BdGEMM_blocking(A, 2, 2, B, 2, 0, 3, 2)
 
     print("Calculating Ref with numpy")
     # total_time = 0

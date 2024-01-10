@@ -7,12 +7,11 @@ import cupy as cp
 import cupyx as cpx
 
 from banded_mm.matrix_utils import banded_matrix_generator
-from banded_mm.xGBMM_naive_copy import xGBMM_naive_copy
 
 from timeit import repeat
 
 # General banded times banded matrix multiplication (A & B banded)
-def _xGBMM_outer(
+def _BdGEMM_outer(
         C: np.ndarray,
         A: np.ndarray,
         ku_A: int,
@@ -60,7 +59,7 @@ def _xGBMM_outer(
         kl = kl_A - (C1x.start - B1x.start)
 
         # inner loop
-        first_stream = _xGBMM_inner(
+        first_stream = _BdGEMM_inner(
             C[C1x, Cx1],
             A[C1x, B1x],
             B[B1x, Bx1],
@@ -117,7 +116,7 @@ def _slicer(
 
     return D1, A1, A2, A3
 
-def _xGBMM_inner(
+def _BdGEMM_inner(
         E: np.ndarray,
         A: np.ndarray,
         D: np.ndarray,
@@ -308,7 +307,7 @@ def _xGBMM_inner(
 
     return (first_stream + num_blocks) % 2
 
-def  xGBMM_streamed(
+def  BdGEMM_streamed(
         C: np.ndarray,
         A: np.ndarray,
         kl_A: int,
@@ -320,7 +319,7 @@ def  xGBMM_streamed(
         block_size_inner
     ):
     # C = np.zeros((A.shape[0], B.shape[1]))
-    C = _xGBMM_outer(C, A, ku_A, kl_A, B, ku_B, kl_B, block_size_outer, block_size_inner)
+    C = _BdGEMM_outer(C, A, ku_A, kl_A, B, ku_B, kl_B, block_size_outer, block_size_inner)
     return C
 
 if __name__ == "__main__":
@@ -351,7 +350,7 @@ if __name__ == "__main__":
         #     total_time += end_time - start_time
         # print(f"Average Time taken: {total_time/10} seconds")
 
-        runtimes = repeat("xGBMM_streamed(C, A, 50, 50, B, 50, 50, 100, 100)",
+        runtimes = repeat("BdGEMM_streamed(C, A, 50, 50, B, 50, 50, 100, 100)",
                           setup="cp.cuda.runtime.deviceSynchronize()",
                           repeat=20, number=1, globals={**globals(), **locals()})
         print(f"Median Time taken: {np.median(runtimes)} seconds")
@@ -377,7 +376,7 @@ if __name__ == "__main__":
 
         print("Calculating xGBMM")
         #C = gbmm_gpu(A, 2, 2, B, 0, 2, 3, 2)
-        C = xGBMM_streamed(C, A, 2, 2, B, 2, 0, 3, 2)
+        C = BdGEMM_streamed(C, A, 2, 2, B, 2, 0, 3, 2)
         
 
     print("Calculating Ref with numpy")

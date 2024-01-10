@@ -8,7 +8,7 @@ import cupy as cp
 from banded_mm.matrix_utils import banded_matrix_generator
 
 # General banded times banded matrix multiplication (A & B banded)
-def _xGBMM_outer(
+def _BdGEMM_outer(
         C: cp.ndarray,
         A: cp.ndarray,
         ku_A: int,
@@ -41,7 +41,7 @@ def _xGBMM_outer(
         kl = kl_A - (C1x.start - B1x.start)
 
         # inner loop
-        C[C1x, Cx1] = _xGBMM_inner(
+        C[C1x, Cx1] = _BdGEMM_inner(
             C[C1x, Cx1],
             A[C1x, B1x],
             B[B1x, Bx1],
@@ -91,7 +91,7 @@ def _slicer(
 
     return D1, A1, A2, A3
 
-def _xGBMM_inner(
+def _BdGEMM_inner(
         E: cp.ndarray,
         A: cp.ndarray,
         D: cp.ndarray,
@@ -135,7 +135,7 @@ def _xGBMM_inner(
 
     return E
 
-def  xGBMM_naive_copy(
+def  BdGEMM_naiveCopy(
         A: np.ndarray,
         kl_A: int,
         ku_A: int,
@@ -146,7 +146,7 @@ def  xGBMM_naive_copy(
         block_size_inner
     ):
     C = np.zeros((A.shape[0], B.shape[1]))
-    C = cp.asnumpy(_xGBMM_outer(
+    C = cp.asnumpy(_BdGEMM_outer(
                     cp.asarray(C),
                     cp.asarray(A), ku_A, kl_A,
                     cp.asarray(B), ku_B, kl_B,
