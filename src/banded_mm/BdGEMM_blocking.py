@@ -5,8 +5,6 @@ Streamed implementation of xGBMM
 import numpy as np
 import cupy as cp
 
-from banded_mm.matrix_utils import banded_matrix_generator
-
 # General banded times banded matrix multiplication (A & B banded)
 def _BdGEMM_outer(
     C: np.ndarray,
@@ -263,65 +261,3 @@ def BdGEMM_blocking(
     C = np.zeros((A.shape[0], B.shape[1]))
     C = _BdGEMM_outer(C, A, ku_A, kl_A, B, ku_B, kl_B, block_size_outer, block_size_inner)
     return C
-
-
-if __name__ == "__main__":
-    import sys
-    import time
-
-    flagged = False
-    try:
-        if sys.argv[1] == "--profiling":
-            flagged = True
-    except:
-        pass
-
-    if flagged:
-        print("Profiling Setup Used")
-        print("Generating band matrices")
-        A = banded_matrix_generator(10000, 10000, 2400, 2900)
-        B = banded_matrix_generator(10000, 10000, 3000, 800)
-
-        print("Calculating xGBMM_streamed")
-        total_time = 0
-        for i in range(10):
-            start_time = time.time()
-            C = BdGEMM_blocking(A, 2400, 2900, B, 3000, 800, 3000, 3000)
-            end_time = time.time()
-            total_time += end_time - start_time
-        print(f"Average Time taken: {total_time/10} seconds")
-    else:
-        print("Debug Setup Used")
-        print("Generating band matrices")
-        # A = banded_matrix_generator(10, 2, 2)
-        # B = banded_matrix_generator(10, 0, 2)
-        A = banded_matrix_generator(10, 10, 2, 2)
-        B = banded_matrix_generator(10, 10, 2, 0)
-
-        print("Calculating xGBMM")
-        # C = gbmm_gpu(A, 2, 2, B, 0, 2, 3, 2)
-        C = BdGEMM_blocking(A, 2, 2, B, 2, 0, 3, 2)
-
-    print("Calculating Ref with numpy")
-    # total_time = 0
-    # for i in range(10):
-    #    start_time = time.time()
-    #    T = A @ B
-    #    end_time = time.time()
-    #    total_time += end_time - start_time
-    # print(f"Average Time taken: {total_time/10} seconds")
-    T = A @ B
-
-    # print("Calculating xGBMM_naive_copy")
-    # total_time = 0
-    # for i in range(10):
-    #    start_time = time.time()
-    #    C = xGBMM_naive_copy(A, 2400, 2900, B, 3000, 800, 3000, 3000)
-    #    end_time = time.time()
-    #    total_time += end_time - start_time
-    # print(f"Average Time taken: {total_time/10} seconds")
-
-    # print(T)
-    # print(C)
-    assert np.allclose(C, T)
-    print("Correct Result computed")

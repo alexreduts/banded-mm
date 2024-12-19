@@ -5,8 +5,6 @@ Naive copy implementation of xGBMM
 import numpy as np
 import cupy as cp
 
-from banded_mm.matrix_utils import banded_matrix_generator
-
 # General banded times banded matrix multiplication (A & B banded)
 def _BdGEMM_outer(
         C: cp.ndarray,
@@ -154,39 +152,3 @@ def  BdGEMM_naiveCopy(
                     block_size_inner
     ))
     return C
-
-if __name__ == "__main__":
-
-    import sys
-    
-    flagged = False
-    try:
-        if sys.argv[1] == "--profiling":
-            flagged = True
-    except:
-        pass
-
-    if flagged:
-        print("Profiling Setup Used")
-        print("Generating band matrices")
-        A = banded_matrix_generator(10000, 10000, 2400, 2900)
-        B = banded_matrix_generator(10000, 10000, 3000, 800)
-
-        print("Calculating xGBMM")
-        C = xGBMM_naive_copy(A, 2400, 2900, B, 3000, 800, 3000, 3000)
-    else:
-        print("Debug Setup Used")
-        print("Generating band matrices")
-        #A = banded_matrix_generator(10, 10, 0, 0)
-        #B = banded_matrix_generator(10, 10, 0, 0)
-        A = banded_matrix_generator(5, 10, 2, 3)
-        B = banded_matrix_generator(10, 5, 2, 3)
-
-        print("Calculating xGBMM")
-        #C = xGBMM_naive_copy(A, 0, 0, B, 0, 0, 3, 2)
-        C = xGBMM_naive_copy(A, 2, 3, B, 2, 3, 3, 2)
-
-    print("Calculating Ref with numpy")
-    T = A @ B
-    assert np.allclose(C, T)
-    print("Correct Result computed")

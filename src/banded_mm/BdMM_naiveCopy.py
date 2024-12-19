@@ -2,8 +2,6 @@ import numpy as np
 import cupy as cp
 import cupyx as cpx
 
-from banded_mm.matrix_utils import banded_matrix_generator
-
 # General banded times banded matrix multiplication (A & B banded)
 def _gbmm_gpu_outer(
         C: np.ndarray,
@@ -63,17 +61,16 @@ def _gbmm_gpu_inner(
 
     # Buffers
     D1 = [cp.empty((b, b), dtype=A.dtype) for _ in range(2)]
-    
-    #A11 = [???]
-    #A21 = [???]
-    #A31 = [???]
 
-    #E1 = [cp.empty((b, b), dtype=A.dtype) for _ in range(2)] 
-    #E2 = [cp.empty((b, b), dtype=A.dtype) for _ in range(2)]
-    #E3 = [cp.empty((b, b), dtype=A.dtype) for _ in range(2)]
+    # A11 = [???]
+    # A21 = [???]
+    # A31 = [???]
 
-    #E = cp.empty((b,b), dtype=A.dtype) for _ in range(4)
-    
+    # E1 = [cp.empty((b, b), dtype=A.dtype) for _ in range(2)]
+    # E2 = [cp.empty((b, b), dtype=A.dtype) for _ in range(2)]
+    # E3 = [cp.empty((b, b), dtype=A.dtype) for _ in range(2)]
+
+    # E = cp.empty((b,b), dtype=A.dtype) for _ in range(4)
 
     # Streams
     streams = [cp.cuda.Stream(non_blocking=True) for _ in range(2)]
@@ -98,10 +95,10 @@ def _gbmm_gpu_inner(
         E[E2x, :] = cp.asnumpy(cp.asarray(E[E2x, :]) + cp.matmul(cp.asarray(A[E2x, D1x]),D1[0]))
         E[E3x, :] = cp.asnumpy(cp.asarray(E[E3x, :]) + cp.matmul(cp.asarray(A[E3x, D1x]),D1[0]))
         events[0].record(stream=stream)
-        #E1[0].get(out=E[E1x, :])
+        # E1[0].get(out=E[E1x, :])
 
-    #E[E2x, :] = cp.asnumpy(cp.asarray(E[E2x, :]) + cp.matmul(cp.asarray(A[E2x, D1x]),cp.asarray(D[D1x, :])))
-    #E[E3x, :] = cp.asnumpy(cp.asarray(E[E3x, :]) + cp.matmul(cp.asarray(A[E3x, D1x]),cp.asarray(D[D1x, :])))
+    # E[E2x, :] = cp.asnumpy(cp.asarray(E[E2x, :]) + cp.matmul(cp.asarray(A[E2x, D1x]),cp.asarray(D[D1x, :])))
+    # E[E3x, :] = cp.asnumpy(cp.asarray(E[E3x, :]) + cp.matmul(cp.asarray(A[E3x, D1x]),cp.asarray(D[D1x, :])))
 
     # Adjust partition
     D1x = slice(D1x.start+b, D1x.stop+b)
@@ -110,10 +107,10 @@ def _gbmm_gpu_inner(
 
     # Looping
     # -----------------
-    #while D1x.start < k:
+    # while D1x.start < k:
     num_blocks = -(- k // b)
     for i in range(1, num_blocks):
-        
+
         # Repartition
         if D1x.start < (ku+1):
             E1x = slice(E1x.start, E1x.start)
@@ -126,7 +123,7 @@ def _gbmm_gpu_inner(
             E3x = slice(E3x.start, E3x.start+b)
 
         E2x = slice(E1x.stop, E3x.start)
-        
+
         # Calcuations
         with streams[i % 2] as stream:
             D1cur = D1[i % 2][:D1x.stop-D1x.start]
@@ -135,28 +132,25 @@ def _gbmm_gpu_inner(
 
             if D1x.start >= (ku+1):
                 E[E1x, :] = cp.asnumpy(cp.asarray(E[E1x, :]) + cp.matmul(cp.asarray(A[E1x, D1x]), D1cur))
-                #E1[i % 2] = E1[(i-1) % 2] + A11[i % 2] @ D1[i % 2]
+                # E1[i % 2] = E1[(i-1) % 2] + A11[i % 2] @ D1[i % 2]
 
             if D1x.start <= (k-kl-1):
                 E[E3x, :] = cp.asnumpy(cp.asarray(E[E3x, :]) + cp.matmul(cp.asarray(A[E3x, D1x]), D1cur))
-                #E3[i % 2] = E3[(i-1) % 2] + A31[i % 2] @ D1[i % 2]
+                # E3[i % 2] = E3[(i-1) % 2] + A31[i % 2] @ D1[i % 2]
 
             E[E2x, :] = cp.asnumpy(cp.asarray(E[E2x, :]) + cp.matmul(cp.asarray(A[E2x, D1x]), D1cur))
-            #E2[i % 2] = E2[(i-1) % 2] + A21[i % 2] @ D1[i % 2]
+            # E2[i % 2] = E2[(i-1) % 2] + A21[i % 2] @ D1[i % 2]
             events[i % 2].record(stream=stream)
-            #E1[0].get(out=E[E1x, :])
+            # E1[0].get(out=E[E1x, :])
 
             # Adjust partition
             if D1x.start >= (ku+1):
                 E1x = slice(E1x.start+b, E1x.stop)
-            
+
             # D1x = slice(D1x.start+b, D1x.stop+b)
             D1x = slice(D1x.stop, min(D1x.stop + b, k))
             E3x = slice(E3x.start+b, E3x.stop)
     # -----------------
-    
-
-
 
     return E
 
@@ -171,14 +165,3 @@ def  gbmm_gpu(
     C = np.zeros((A.shape[0], B.shape[1]))
     C = _gbmm_gpu_outer(C, A, ku_A, kl_A, B, ku_B, kl_B)
     return C
-
-if __name__ == "__main__":
-
-    A = banded_matrix_generator(25, 2, 1)
-    B = banded_matrix_generator(25, 3, 7)
-    C = gbmm_gpu(A, 2, 1, B, 3, 7)
-
-    T = A @ B
-    #print(C-T)
-    assert np.allclose(C, T)
-    print("Correct Result computed")
