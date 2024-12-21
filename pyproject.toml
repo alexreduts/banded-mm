@@ -11,10 +11,10 @@ optional = true
 
 [tool.poetry.dependencies]
 python = "^3.11"
-numpy = "^2.2.0"
+numpy = "*"
 
 [tool.poetry.group.gpu.dependencies]
-cupy = "^4.0.1"
+cupy-cuda11x = "^12.2.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "4.0.1"
