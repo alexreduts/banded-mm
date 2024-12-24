@@ -8,3 +8,4 @@ experimental.py
 .vscode
 .venv
 venv
+.DS_Store
