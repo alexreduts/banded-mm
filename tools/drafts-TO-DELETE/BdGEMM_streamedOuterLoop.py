@@ -18,7 +18,7 @@ limitations under the License.
 import numpy as np
 import cupy as cp
 
-from banded_mm.matrix_utils import banded_matrix_generator
+from utils.matrix_utils import banded_matrix_generator
 
 # General banded times banded matrix multiplication (A & B banded)
 def _gbmm_gpu_outer(

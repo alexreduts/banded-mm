@@ -13,6 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import numpy as np
+from .BdGEMM_blocking import BdGEMM_blocking
+from .BdGEMM_naiveCopy import BdGEMM_naiveCopy
+from .BdGEMM_streamed import BdGEMM_streamed
+from .BdGEMM_streamedOuterLoop import gbmm_gpu as BdGEMM_streamedOuterLoop
+from .BdMM_naiveCopy import gbmm_gpu as BdMM_naiveCopy
+
 
 def BdGEMM(
         C: np.ndarray,
@@ -24,16 +31,17 @@ def BdGEMM(
         ku_B: int,
         block_size_outer,
         block_size_inner,
-        **kwargs
+        implementation: str='naiveCopy'
         ):
-    match(implementation):
+
+    match implementation:
         case 'streamed':
             print("Implementation specifiec: 'streamed'")
             BdGEMM_streamed(C, A, kl_A, ku_A, B, kl_B, ku_B, block_size_outer, block_size_inner)
         case 'blocking':
             print("Implementation specifice: 'blocking'")
             BdGEMM_blocking(C, A, kl_A, ku_A, B, kl_B, ku_B, block_size_outer, block_size_inner)
-        else 'naiveCopy':
+        case 'naiveCopy':
             BdGEMM_naiveCopy(C, kl_A, ku_A, B, kl_B, ku_B, block_size_outer, block_size_inner)
     
 def BdMM(

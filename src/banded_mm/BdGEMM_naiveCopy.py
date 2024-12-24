@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 """
-Naive copy implementation of xGBMM
+Naive copy implementation of BdGEMM
 """
 
 import numpy as np

@@ -4,16 +4,59 @@
 
 from timeit import repeat
 import numpy as np
+from banded_mm import BdGEMM, BdMM
 
 ## Parse input
-match test_scenario:
-    case BdGEMM_blocking:
+#match test_scenario:
+#    case BdGEMM_blocking:
         
+# Experiment 1
+# Bandwith 2%, Blocksize 1%, Matrix Sizes: 2500, 5000, 10000
+def experiment_1(matrix_size, routine):
 
+    half_bandwidth = matrix_size/100
+    block_size = matrix_size/100
+
+    A = banded_matrix_generator(matrix_size, matrix_size, half_bandwidth, half_bandwidth)
+    B = banded_matrix_generator(matrix_size, matrix_size, half_bandwidth, half_bandwidth)
+    C = np.zeros((A.shape[0], B.shape[1]))
+
+    match routine:
+        case 'BdMM_naive':
+            for i in range(10):
+                # timing
+                BdMM(A, half_bandwidth, half_bandwidth, B, half_bandwidth, half_bandwidth)
+        case 'BdGEMM_naive':
+            for i in range(10):
+                # timing
+                BdGEMM()
+        case 'BdGEMM_block':
+            for i in range(10):
+                # timing
+                BdGEMM()
+
+# Experiment 2
+# Marix size limits
+def experiment_2(matrix_size, routine):
+    half_bandwidth = matrix_size/100
+    block_size = matrix_size/100
+
+    A = banded_matrix_generator(matrix_size, matrix_size, half_bandwidth, half_bandwidth)
+    B = banded_matrix_generator(matrix_size, matrix_size, half_bandwidth, half_bandwidth)
+    C = np.zeros((A.shape[0], B.shape[1]))
+
+    match routine:
+        case 'BdMM_naive': BdMM(A, half_bandwidth, half_bandwidth, B, half_bandwidth, half_bandwidth)
+        case 'BdGEMM_naive': BdGEMM()
+        case 'BdGEMM_block': BdGEMM()
+
+
+# Experiment 3
+# Runtime of naive copy vairants if B would be dense
 
 # --------------------------------
 ### Moved from BdGEMM_blocking.py
-from matrix_utils import banded_matrix_generator
+from utils.matrix_utils import banded_matrix_generator
 
 if __name__ == "__main__":
     import sys
