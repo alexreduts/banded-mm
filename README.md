@@ -1,39 +1,12 @@
 # banded-mm
-ETHZ Semester Project on "Efficient banded matrix multiplication for quantum transport simulation"
+**Disclaimer**: This repository was originally created as part of ETHZ Semester Project on "Efficient banded matrix multiplication for quantum transport simulation". I subsequentially used it as personal reference for python projects, and additionally use it for testing python dev tools. The stability of this package might not be guaranteed.
 
-Library with prototype implementations of BdGEMM Algorithm and comparison Algorithms BdMM, etc.
+Primarily, **banded-mm** is a python package implementing a prototype of the BdGEMM algorithm developed during the ETHZ Semester Project. BdGEMM is BLAS-like algorithm for matrix multiplications involving two banded matrices. It allows for efficient block-wise multiplication of banded matrices on Nvidia GPU's. This solves memory constraints faced when trying to do multiplication of bigger matrices. Detailed reasoning about the algorithm can be found in the in the report "Efficient Banded Matrix Multiplication for Quantum Transport Simulation" in the `/docs` folder. 
 
-Detailed reasoning about the algorithm can be found in the in the Report pdf in the docs section
+`/src` contains `banded_mm` package which consists of two functions `BdMM` and `BdGEMM`. `BdGEMM` is available in multiple different implementations. If none is specifiec explicetly, it will use the most optimized implementation. The unittest of `banded_mm` are located in `/tests`.
 
-**Note**: This repository also serves as a personal reference for python projects, and is used for
-testing dev tools.
-
-Library Design: the banded matrix multiplication offers two functions when imported
-BdMM and BdGEMM, The library offers different implementations variations of BdGEMM which can be
-specified with a argument `blocking` etc. If not specified it will default to naiveCopy
-
+`/tools` contains utility python scripts with functions like `banded_matrix_generator` and scripts used for experimental evaluation of the algorithms.
 
 ## Install
 **Requirements**
-+ Tested on Ubuntu LTE 22.04 and Quatro P2000 alternative systems might work but are not guaranteed
-+ CUDA version ... and compatible Graphics Card from Nvidia
-
-1. Clone Repo `git clone ...`
-2. Install poetry `link to poetry`
-3. cd ... && pip install --editable .
-
-## Development Notes
-### Testing
-unittest
-tox
-(pytest)
-
-precommit
-    flake8
-    black
-    _test_
-
-
-
-## Run Experiments
-+ Create python script running with different parameters given in a TOML config file
++ The latest tests were run on Windows 11 with WSL2 running Ubuntu LTE 22.04 and using a RTX3060. Alternative systems might work but are not guaranteed
