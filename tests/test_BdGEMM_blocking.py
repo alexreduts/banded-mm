@@ -8,7 +8,7 @@ from unittest import TestCase
 import numpy as np
 
 from banded_mm.BdGEMM_blocking import BdGEMM_blocking
-from banded_mm.matrix_utils import banded_matrix_generator
+from tools.utils.matrix_utils import banded_matrix_generator
 
 class TestBdGEMM(TestCase):
 

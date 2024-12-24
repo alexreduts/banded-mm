@@ -9,7 +9,7 @@ import numpy as np
 import cupyx as cpx
 
 from banded_mm.BdGEMM_streamed import BdGEMM_streamed
-from banded_mm.matrix_utils import banded_matrix_generator
+from tools.utils.matrix_utils import banded_matrix_generator
 
 class TestxGBMM(TestCase):
 
